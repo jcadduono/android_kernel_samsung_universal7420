@@ -1,0 +1,13 @@
+#
+config MST_FTM
+	def_bool y
+	depends on SEC_FACTORY
+
+config MST_NOBLE_TARGET
+	def_bool n
+	bool "mst solution for noble target"
+
+config MST_ZEN_TARGET
+	def_bool n
+	bool "mst solution for zen target"
+
