@@ -3572,8 +3572,10 @@ static int decon_prevent_size_mismatch
 	unsigned long cnt = timeout / delay_time;
 	u32 decon_line, dsim_line;
 	u32 decon_hoz, dsim_hoz;
+#ifdef CONFIG_DECON_EVENT_LOG
 	u32 need_save = true;
 	struct disp_ss_size_info info;
+#endif
 
 	if (decon->pdata->psr_mode == DECON_VIDEO_MODE)
 		return 0;
@@ -3591,6 +3593,7 @@ static int decon_prevent_size_mismatch
 			goto wait_done;
 		}
 
+#ifdef CONFIG_DECON_EVENT_LOG
 		if (need_save) {
 			/* TODO: Save a err data */
 			info.w_in = decon_hoz;
@@ -3600,6 +3603,7 @@ static int decon_prevent_size_mismatch
 			DISP_SS_EVENT_SIZE_ERR_LOG(&decon->sd, &info);
 			need_save = false;
 		}
+#endif
 
 		udelay(delay_time);
 	}

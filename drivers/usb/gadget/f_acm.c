@@ -902,9 +902,9 @@ static struct usb_function_instance *acm_alloc_instance(void)
 	return &opts->func_inst;
 }
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 DECLARE_USB_FUNCTION(acm, acm_alloc_instance, acm_alloc_func);
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 static int __init acm_init(void)
 {
 #ifdef CONFIG_USB_DUN_SUPPORT
@@ -924,6 +924,9 @@ static void __exit acm_exit(void)
 }
 module_init(acm_init);
 module_exit(acm_exit);
+
+#else
+DECLARE_USB_FUNCTION_INIT(acm, acm_alloc_instance, acm_alloc_func);
 #endif
 
 MODULE_LICENSE("GPL");

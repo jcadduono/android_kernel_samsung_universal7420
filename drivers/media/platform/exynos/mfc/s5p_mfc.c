@@ -2413,7 +2413,9 @@ static int s5p_mfc_release(struct file *file)
 	struct s5p_mfc_ctx *ctx = fh_to_mfc_ctx(file->private_data);
 	struct s5p_mfc_dev *dev = NULL;
 	struct s5p_mfc_enc *enc = NULL;
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
 	int ret = 0;
+#endif
 
 	dev = ctx->dev;
 	if (!dev) {

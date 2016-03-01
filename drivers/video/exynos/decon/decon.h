@@ -595,27 +595,6 @@ struct disp_frame {
 	u32 timeline_max;
 };
 
-typedef enum disp_esd_irq {
-	irq_no_esd = 0,
-	irq_pcd_det,
-	irq_err_fg,
-	irq_disp_det
-} disp_esd_irq_t;
-
-struct esd_protect {
-	u32 pcd_irq;
-	u32 err_irq;
-	u32 disp_det_irq;
-	u32 pcd_gpio;
-	u32 disp_det_gpio;
-	struct workqueue_struct *esd_wq;
-	struct work_struct esd_work;
-	u32	queuework_pending;
-	int irq_disable;
-	disp_esd_irq_t irq_type;
-	ktime_t when_irq_enable;
-};
-
 struct disp_log_decon_frm_done {
 	u32 val[9];
 };
@@ -692,6 +671,27 @@ struct vpp_drm_log {
 	int decon_id;
 	int line;
 	bool protection;
+};
+
+typedef enum disp_esd_irq {
+	irq_no_esd = 0,
+	irq_pcd_det,
+	irq_err_fg,
+	irq_disp_det
+} disp_esd_irq_t;
+
+struct esd_protect {
+	u32 pcd_irq;
+	u32 err_irq;
+	u32 disp_det_irq;
+	u32 pcd_gpio;
+	u32 disp_det_gpio;
+	struct workqueue_struct *esd_wq;
+	struct work_struct esd_work;
+	u32	queuework_pending;
+	int irq_disable;
+	disp_esd_irq_t irq_type;
+	ktime_t when_irq_enable;
 };
 
 struct decon_device {

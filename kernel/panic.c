@@ -138,7 +138,9 @@ void panic(const char *fmt, ...)
 #if defined(CONFIG_SOC_EXYNOS5422) || defined(CONFIG_SOC_EXYNOS5430)
 	show_exynos_cmu();
 #endif
+#ifdef CONFIG_SCHED_DEBUG
 	sysrq_sched_debug_show();
+#endif
 
 	/*
 	 * If we have crashed and we have a crash kernel loaded let it handle
