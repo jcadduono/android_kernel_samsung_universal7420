@@ -209,6 +209,14 @@ static int usb_handle_notification(struct notifier_block *nb,
 		else
 			pr_err("%s - ACTION Error!\n", __func__);
 		break;
+	case ATTACHED_DEV_USB_LANHUB_MUIC:
+		if (action == MUIC_NOTIFY_CMD_DETACH)
+			send_otg_notify(o_notify, NOTIFY_EVENT_LANHUB, 0);
+		else if (action == MUIC_NOTIFY_CMD_ATTACH)
+			send_otg_notify(o_notify, NOTIFY_EVENT_LANHUB, 1);
+		else
+			pr_err("%s - ACTION Error!\n", __func__);
+		break;
 	default:
 		break;
 	}
@@ -354,6 +362,7 @@ static struct otg_notify dwc_lsi_notify = {
 	.is_wakelock = 1,
 	.booting_delay_sec = 10,
 	.auto_drive_vbus = 1,
+	.device_check_sec = 3,
 	.set_battcall = set_online,
 };
 

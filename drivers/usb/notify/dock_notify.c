@@ -185,6 +185,19 @@ skip:
 	return 0;
 }
 
+static int call_device_notify(struct usb_device *dev)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+
+	if (dev->bus->root_hub != dev) {
+		pr_info("%s device\n", __func__);
+		send_otg_notify(o_notify, NOTIFY_EVENT_DEVICE_CONNECT, 1);
+	} else
+		pr_info("%s root hub\n", __func__);
+
+	return 0;
+}
+
 static int update_hub_autosuspend_timer(struct usb_device *dev)
 {
 	struct usb_device *hdev;
@@ -214,6 +227,7 @@ static int dev_notify(struct notifier_block *self,
 {
 	switch (action) {
 	case USB_DEVICE_ADD:
+		call_device_notify(dev);
 		call_battery_notify(dev, 1);
 		update_hub_autosuspend_timer(dev);
 		break;

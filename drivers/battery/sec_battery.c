@@ -161,6 +161,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(camera_temp_adc),
 	SEC_BATTERY_ATTR(camera_temp),
 	SEC_BATTERY_ATTR(camera_limit),
+	SEC_BATTERY_ATTR(batt_misc_event),
 };
 
 static enum power_supply_property sec_battery_props[] = {
@@ -316,6 +317,27 @@ static int sec_bat_set_charge(
 #endif
 
 	return 0;
+}
+
+static void sec_bat_set_misc_event(struct sec_battery_info *battery,
+	const int misc_event_type, bool do_clear) {
+
+	mutex_lock(&battery->misclock);
+	pr_info("%s: %s misc event(now=0x%x, value=0x%x)\n",
+		__func__, ((do_clear) ? "clear" : "set"), battery->misc_event, misc_event_type);
+	if (do_clear) {
+		battery->misc_event &= ~misc_event_type;
+	} else {
+		battery->misc_event |= misc_event_type;
+	}
+	mutex_unlock(&battery->misclock);
+
+	if (battery->prev_misc_event != battery->misc_event) {
+		cancel_delayed_work(&battery->misc_event_work);
+		wake_lock(&battery->misc_event_wake_lock);
+		queue_delayed_work_on(0, battery->monitor_wqueue,
+			&battery->misc_event_work, 0);
+	}
 }
 
 static int sec_bat_get_adc_data(struct sec_battery_info *battery,
@@ -3056,8 +3078,39 @@ static void sec_bat_fw_init_work(struct work_struct *work)
 			POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL, value);
 	}
 }
-
 #endif
+
+static void sec_bat_misc_event_work(struct work_struct *work)
+{
+	struct sec_battery_info *battery = container_of(work,
+				struct sec_battery_info, misc_event_work.work);
+	int xor_misc_event = battery->prev_misc_event ^ battery->misc_event;
+
+	if ((xor_misc_event & BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE) &&
+		(battery->cable_type == POWER_SUPPLY_TYPE_BATTERY)) {
+		if (battery->misc_event & BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE) {
+			sec_bat_set_charge(battery, false);
+			if (battery->pdata->waterproof) {
+				/* waterproof model have to disable buck */
+				union power_supply_propval value;
+				value.intval = 0;
+				psy_do_property(battery->pdata->charger_name, set,
+						POWER_SUPPLY_PROP_CURRENT_MAX, value);
+			}
+		} else if (battery->prev_misc_event & BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE) {
+			sec_bat_set_charge(battery, false);
+		}
+	}
+
+	pr_info("%s: change misc event(0x%x --> 0x%x)\n",
+		__func__, battery->prev_misc_event, battery->misc_event);
+	battery->prev_misc_event = battery->misc_event;
+	wake_unlock(&battery->misc_event_wake_lock);
+
+	wake_lock(&battery->monitor_wake_lock);
+	queue_delayed_work_on(0, battery->monitor_wqueue, &battery->monitor_work, 0);
+}
+
 static void sec_bat_monitor_work(
 				struct work_struct *work)
 {
@@ -4203,6 +4256,10 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			       battery->camera_limit);
 		break;
+	case BATT_MISC_EVENT:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+			       battery->misc_event);
+		break;
 	default:
 		i = -EINVAL;
 	}
@@ -5199,6 +5256,8 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case CAMERA_LIMIT:
 		break;
+	case BATT_MISC_EVENT:
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -5855,6 +5914,7 @@ static int sec_bat_cable_check(struct sec_battery_info *battery,
 	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
 	case ATTACHED_DEV_JIG_UART_ON_MUIC:
 		battery->is_jig_on = true;
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
 	case ATTACHED_DEV_SMARTDOCK_MUIC:
 	case ATTACHED_DEV_DESKDOCK_MUIC:
 		current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
@@ -5957,6 +6017,7 @@ static int batt_handle_notification(struct notifier_block *nb,
 		battery->is_jig_on = false;
 		cable_type = POWER_SUPPLY_TYPE_BATTERY;
 		battery->muic_cable_type = ATTACHED_DEV_NONE_MUIC;
+		battery->usb_3s_nodevice = false;
 		break;
 	case MUIC_NOTIFY_CMD_ATTACH:
 	case MUIC_NOTIFY_CMD_LOGICALLY_ATTACH:
@@ -5970,6 +6031,9 @@ static int batt_handle_notification(struct notifier_block *nb,
 		battery->muic_cable_type = ATTACHED_DEV_NONE_MUIC;
 		break;
 	}
+
+	sec_bat_set_misc_event(battery, BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE,
+		(battery->muic_cable_type != ATTACHED_DEV_UNDEFINED_RANGE_MUIC));
 
 	if (attached_dev == ATTACHED_DEV_MHL_MUIC)
 		return 0;
@@ -6082,16 +6146,18 @@ static int vbus_handle_notification(struct notifier_block *nb,
 		vbus_status == STATUS_VBUS_LOW) {
 		sec_bat_set_charge(battery, false);
 		msleep(500);
-		value.intval = true;
-		psy_do_property(battery->pdata->charger_name, set,
-				POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL,
-				value);
-		dev_info(battery->dev,
-			"%s: changed to OTG cable attached\n", __func__);
+		if (!battery->usb_3s_nodevice) {
+			value.intval = true;
+			psy_do_property(battery->pdata->charger_name, set,
+					POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL,
+					value);
+			dev_info(battery->dev,
+				"%s: changed to OTG cable attached\n", __func__);
 
-		battery->wire_status = POWER_SUPPLY_TYPE_OTG;
-		wake_lock(&battery->cable_wake_lock);
-		queue_delayed_work_on(0, battery->monitor_wqueue, &battery->cable_work, 0);
+			battery->wire_status = POWER_SUPPLY_TYPE_OTG;
+			wake_lock(&battery->cable_wake_lock);
+			queue_delayed_work_on(0, battery->monitor_wqueue, &battery->cable_work, 0);
+		}
 	}
 	pr_info("%s: action=%d, vbus_status=%d\n", __func__, (int)action, vbus_status);
 	battery->muic_vbus_status = vbus_status;
@@ -6100,6 +6166,28 @@ static int vbus_handle_notification(struct notifier_block *nb,
 }
 #endif
 
+#if defined(CONFIG_USB_EXTERNAL_NOTIFY)
+static int usb_handle_notification(struct notifier_block *nb,
+		unsigned long action, void *data)
+{
+	struct sec_battery_info *battery =
+		container_of(nb, struct sec_battery_info, usb_nb);
+
+	switch(action) {
+	case EXTERNAL_NOTIFY_3S_NODEVICE:		
+		if (battery->muic_cable_type == ATTACHED_DEV_HMT_MUIC) {
+			pr_info("%s: 3S_NODEVICE(USB HOST Connection timeout)\n", __func__);
+			battery->usb_3s_nodevice = true;
+		}
+		break;
+	case EXTERNAL_NOTIFY_DEVICE_CONNECT:
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_OF
 static int sec_bat_parse_dt(struct device *dev,
@@ -6156,6 +6244,8 @@ static int sec_bat_parse_dt(struct device *dev,
 
 	ret = of_property_read_u32(np,
 		"battery,wireless_cc_cv", &pdata->wireless_cc_cv);
+
+	pdata->waterproof = of_property_read_bool(np, "battery,waterproof");
 
 	pdata->fake_capacity = of_property_read_bool(np,
 						     "battery,fake_capacity");
@@ -7041,6 +7131,7 @@ static int __devinit sec_battery_probe(struct platform_device *pdev)
         battery->dev = &pdev->dev;
 
 	mutex_init(&battery->adclock);
+	mutex_init(&battery->misclock);
 
 	dev_dbg(battery->dev, "%s: ADC init\n", __func__);
 
@@ -7058,6 +7149,8 @@ static int __devinit sec_battery_probe(struct platform_device *pdev)
 		       "sec-battery-vbus");
 	wake_lock_init(&battery->siop_wake_lock, WAKE_LOCK_SUSPEND,
 		       "sec-battery-siop");
+	wake_lock_init(&battery->misc_event_wake_lock, WAKE_LOCK_SUSPEND,
+		       "sec-battery-misc-event");
 
 	/* initialization of battery info */
 	sec_bat_set_charging_status(battery,
@@ -7253,6 +7346,7 @@ static int __devinit sec_battery_probe(struct platform_device *pdev)
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	INIT_DELAYED_WORK(&battery->fw_init_work, sec_bat_fw_init_work);
 #endif
+	INIT_DELAYED_WORK(&battery->misc_event_work, sec_bat_misc_event_work);
 
 	switch (pdata->polling_type) {
 	case SEC_BATTERY_MONITOR_WORKQUEUE:
@@ -7365,6 +7459,12 @@ static int __devinit sec_battery_probe(struct platform_device *pdev)
 				vbus_handle_notification,
 				VBUS_NOTIFY_DEV_CHARGER);
 #endif
+	battery->usb_3s_nodevice = false;
+#if defined(CONFIG_USB_EXTERNAL_NOTIFY)
+	usb_external_notify_register(&battery->usb_nb,
+				usb_handle_notification,
+				EXTERNAL_NOTIFY_DEV_CHARGER);
+#endif
 
 #if defined(CONFIG_AFC_CHARGER_MODE)
 	value.intval = 1;
@@ -7449,7 +7549,9 @@ err_wake_lock:
 	wake_lock_destroy(&battery->cable_wake_lock);
 	wake_lock_destroy(&battery->vbus_wake_lock);
 	wake_lock_destroy(&battery->siop_wake_lock);
+	wake_lock_destroy(&battery->misc_event_wake_lock);
 	mutex_destroy(&battery->adclock);
+	mutex_destroy(&battery->misclock);
 	kfree(pdata);
 err_bat_free:
 	kfree(battery);
@@ -7485,7 +7587,9 @@ static int __devexit sec_battery_remove(struct platform_device *pdev)
 	wake_lock_destroy(&battery->vbus_wake_lock);
 	wake_lock_destroy(&battery->siop_wake_lock);
 
+	wake_lock_destroy(&battery->misc_event_wake_lock);
 	mutex_destroy(&battery->adclock);
+	mutex_destroy(&battery->misclock);
 #ifdef CONFIG_OF
 	adc_exit(battery);
 #else

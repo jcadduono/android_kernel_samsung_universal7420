@@ -93,7 +93,7 @@ static int ipc_bridge_submit_inturb(struct ipc_bridge *dev, gfp_t gfp_flags, boo
 	}
 
 	if (!resuming) {
-		if ((atomic_read(&dev->inturb->reject) == 1) ||
+		if ((atomic_read(&dev->inturb->reject) && !atomic_read(&dev->inturb->use_count)) ||
 				(dev->inturb->dev->state == USB_STATE_NOTATTACHED)) {
 			dev_err(&dev->intf->dev, "%s: runtime_status: %d, rx_state %d, state %d\n",
 					__func__, dev->inturb->dev->dev.power.runtime_status,

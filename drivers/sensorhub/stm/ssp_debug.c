@@ -421,6 +421,37 @@ static void recovery_mcu(struct ssp_data *data)
 	data->uTimeOutCnt = 0;
 }
 
+/*
+	check_sensor_event
+	- return 
+		true : there is no accel or light sensor event over 5sec when sensor is registered
+*/
+bool check_wait_event(struct ssp_data *data)
+{
+	u64 timestamp = get_current_timestamp();
+	int check_sensors[2] = {ACCELEROMETER_SENSOR, LIGHT_SENSOR};
+	int i, sensor; 
+	bool res = false;
+	
+	for(i = 0 ; i < 2 ; i++)
+	{
+		sensor = check_sensors[i];
+		//the sensor is registered
+		if((atomic64_read(&data->aSensorEnable) & (1 << sensor))
+			//non batching mode
+			&& data->batchLatencyBuf[sensor] == 0
+			//there is no sensor event over 5sec
+			&& data->lastTimestamp[sensor] + 5000000000ULL < timestamp)
+		{
+			ssp_info("%s - sensor(%d) last = %lld, cur = %lld",
+				__func__,sensor,data->lastTimestamp[sensor],timestamp);
+			res = true;
+		}
+	}
+
+	return res;
+}
+
 static void debug_work_func(struct work_struct *work)
 {
 	unsigned int uSensorCnt;
@@ -448,7 +479,8 @@ static void debug_work_func(struct work_struct *work)
 	if (((atomic64_read(&data->aSensorEnable) & (1 << ACCELEROMETER_SENSOR))
 		&& (data->batchLatencyBuf[ACCELEROMETER_SENSOR] == 0)
 		&& (data->uIrqCnt == 0) && (data->uTimeOutCnt > 0))
-		|| (data->uTimeOutCnt > LIMIT_TIMEOUT_CNT))
+		|| (data->uTimeOutCnt > LIMIT_TIMEOUT_CNT)
+		|| (check_wait_event(data)))
 		recovery_mcu(data);
 
 	data->uIrqCnt = 0;

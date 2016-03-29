@@ -49,6 +49,10 @@
 #include <linux/vbus_notifier.h>
 #endif /* CONFIG_VBUS_NOTIFIER */
 
+#if defined(CONFIG_USB_EXTERNAL_NOTIFY)
+#include <linux/usb_notify.h>
+#endif
+
 #if !defined(CONFIG_SEC_FACTORY)
 #if defined(CONFIG_MUIC_ADCMODE_SWITCH_WA)
 #include <linux/delay.h>
@@ -2630,6 +2634,15 @@ static void max77843_muic_detect_dev(struct max77843_muic_data *muic_data, int i
 	}
 #endif
 
+	/*
+	  * Accept the expected ADC only to
+	  * keep our code safe from HMT misrecognition.
+	  */
+	if (muic_data->attached_dev == ATTACHED_DEV_HMT_MUIC) {
+		if ((adc != ADC_OPEN) && (adc != ADC_HMT))
+			return;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(muic_vps_table); i++) {
 		tmp_vps = &(muic_vps_table[i]);
 
@@ -3086,6 +3099,73 @@ out:
 }
 #endif
 
+#if defined(CONFIG_USB_EXTERNAL_NOTIFY)
+extern void muic_send_dock_intent(int type);
+
+static int muic_handle_usb_notification(struct notifier_block *nb,
+				unsigned long action, void *data)
+{
+	struct max77843_muic_data *pmuic =
+		container_of(nb, struct max77843_muic_data, usb_nb);
+
+	switch (action) {
+	/* Abnormal device */
+	case EXTERNAL_NOTIFY_3S_NODEVICE:
+		pr_info("%s:%s: 3S_NODEVICE(USB HOST Connection timeout)\n",
+							MUIC_DEV_NAME, __func__);
+		if (pmuic->attached_dev == ATTACHED_DEV_HMT_MUIC)
+			muic_send_dock_intent(MUIC_DOCK_ABNORMAL);
+		break;
+
+	/* Gamepad device connected */
+	case EXTERNAL_NOTIFY_DEVICE_CONNECT:
+		pr_info("%s:%s: DEVICE_CONNECT(Gamepad)\n", MUIC_DEV_NAME, __func__);
+		break;
+
+	default:
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+
+static void muic_register_usb_notifier(struct max77843_muic_data *pmuic)
+{
+	int ret = 0;
+
+	pr_info("%s:%s: Registering EXTERNAL_NOTIFY_DEV_MUIC.\n", MUIC_DEV_NAME, __func__);
+
+
+	ret = usb_external_notify_register(&pmuic->usb_nb,
+		muic_handle_usb_notification, EXTERNAL_NOTIFY_DEV_MUIC);
+	if (ret < 0) {
+		pr_info("%s:%s: USB Noti. is not ready.\n", MUIC_DEV_NAME, __func__);
+		return;
+	}
+
+	pr_info("%s:%s: done.\n", MUIC_DEV_NAME, __func__);
+}
+
+static void muic_unregister_usb_notifier(struct max77843_muic_data *pmuic)
+{
+	int ret = 0;
+
+	pr_info("%s:%s\n", MUIC_DEV_NAME, __func__);
+
+	ret = usb_external_notify_unregister(&pmuic->usb_nb);
+	if (ret < 0) {
+		pr_info("%s:%s: USB Noti. unregister error.\n", MUIC_DEV_NAME, __func__);
+		return;
+	}
+
+	pr_info("%s:%s: done.\n", MUIC_DEV_NAME, __func__);
+}
+#else
+static void muic_register_usb_notifier(struct max77843_muic_data *pmuic){}
+static void muic_unregister_usb_notifier(struct max77843_muic_data *pmuic){}
+#endif
+
 static int max77843_muic_probe(struct platform_device *pdev)
 {
 	struct max77843_dev *max77843 = dev_get_drvdata(pdev->dev.parent);
@@ -3304,6 +3384,8 @@ static int max77843_muic_probe(struct platform_device *pdev)
 		max77843_hv_muic_init_detect(muic_data);
 #endif
 
+	muic_register_usb_notifier(muic_data);
+
 	return 0;
 
 fail_init_irq:
@@ -3348,6 +3430,8 @@ static int max77843_muic_remove(struct platform_device *pdev)
 
 		if (muic_data->pdata->cleanup_switch_dev_cb)
 			muic_data->pdata->cleanup_switch_dev_cb();
+
+		muic_unregister_usb_notifier(muic_data);
 
 		platform_set_drvdata(pdev, NULL);
 		mutex_destroy(&muic_data->muic_mutex);
@@ -3404,6 +3488,8 @@ void max77843_muic_shutdown(struct device *dev)
 out_cleanup:
 	if (muic_data->pdata && muic_data->pdata->cleanup_switch_dev_cb)
 		muic_data->pdata->cleanup_switch_dev_cb();
+
+	muic_unregister_usb_notifier(muic_data);
 
 	mutex_destroy(&muic_data->muic_mutex);
 	mutex_destroy(&muic_data->reset_mutex);

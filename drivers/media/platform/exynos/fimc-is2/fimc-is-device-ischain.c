@@ -1224,9 +1224,6 @@ static int fimc_is_itf_s_param(struct fimc_is_device_ischain *device,
 	BUG_ON(!device);
 
 	if (frame) {
-		frame->lindex |= lindex;
-		frame->hindex |= hindex;
-
 		dst_base = (ulong)&device->is_region->parameter;
 		src_base = (ulong)frame->shot->ctl.vendor_entry.parameter;
 
@@ -7069,6 +7066,7 @@ static int fimc_is_ischain_3aa_shot(struct fimc_is_device_ischain *device,
 		child = child->child;
 	}
 
+	clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	PROGRAM_COUNT(10);
 
 p_err:
@@ -7217,6 +7215,7 @@ static int fimc_is_ischain_isp_shot(struct fimc_is_device_ischain *device,
 	}
 #endif
 
+	clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	PROGRAM_COUNT(10);
 
 p_err:
@@ -7326,6 +7325,7 @@ static int fimc_is_ischain_dis_shot(struct fimc_is_device_ischain *device,
 		child = child->child;
 	}
 
+	clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	PROGRAM_COUNT(10);
 
 p_err:

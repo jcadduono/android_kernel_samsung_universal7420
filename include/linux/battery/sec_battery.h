@@ -39,6 +39,9 @@
 #if defined(CONFIG_VBUS_NOTIFIER)
 #include <linux/vbus_notifier.h>
 #endif
+#if defined(CONFIG_USB_EXTERNAL_NOTIFY)
+#include <linux/usb_notify.h>
+#endif
 
 #include <linux/sec_batt.h>
 
@@ -52,6 +55,7 @@
 
 #define ADC_CH_COUNT		10
 #define ADC_SAMPLE_COUNT	10
+#define BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE	0x00000001
 
 struct adc_sample_info {
 	unsigned int cnt;
@@ -75,6 +79,9 @@ struct sec_battery_info {
 	struct notifier_block batt_nb;
 #if defined(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block vbus_nb;
+#endif
+#if defined(CONFIG_USB_EXTERNAL_NOTIFY)
+	struct notifier_block usb_nb;
 #endif
 
 	int status;
@@ -181,6 +188,7 @@ struct sec_battery_info {
 	bool is_jig_on;
 	int cable_type;
 	int muic_cable_type;
+	bool usb_3s_nodevice;
 #if defined(CONFIG_VBUS_NOTIFIER)
 	int muic_vbus_status;
 #endif
@@ -259,6 +267,12 @@ struct sec_battery_info {
 	struct delayed_work timetofull_work;
 #endif
 	int batt_cycle;
+
+	struct mutex misclock;
+	unsigned int misc_event;
+	unsigned int prev_misc_event;
+	struct delayed_work misc_event_work;
+	struct wake_lock misc_event_wake_lock;
 };
 
 ssize_t sec_bat_show_attrs(struct device *dev,
@@ -422,6 +436,7 @@ enum {
 	CAMERA_TEMP_ADC,
 	CAMERA_TEMP,
 	CAMERA_LIMIT,
+	BATT_MISC_EVENT,
 };
 
 #ifdef CONFIG_OF

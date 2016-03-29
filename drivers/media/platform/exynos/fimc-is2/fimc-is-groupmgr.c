@@ -1867,8 +1867,6 @@ int fimc_is_group_buffer_queue(struct fimc_is_groupmgr *groupmgr,
 		memset(&frame->shot->uctl.scalerUd, 0, sizeof(struct camera2_scaler_uctl));
 		frame->shot->uctl.scalerUd.orientation = orientation;
 
-		frame->lindex = 0;
-		frame->hindex = 0;
 		frame->fcount = frame->shot->dm.request.frameCount;
 		frame->rcount = frame->shot->ctl.request.frameCount;
 		frame->work_data1 = groupmgr;

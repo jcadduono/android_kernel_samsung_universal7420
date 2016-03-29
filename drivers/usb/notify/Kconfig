@@ -39,7 +39,7 @@ config USB_STORAGE_DETECT
 	help
 	  This feature enables to detect inserting or removing
           sd card in sd reader device.
-          This must to be defined in /usb/storage/Kconfig 
+	  This must to be defined in usb/storage/Kconfig
           directory originally. But this feature is defined
           in this Kconfig to gather samsung feature about usb host.
 
@@ -50,3 +50,11 @@ config USB_HMT_SAMSUNG_INPUT
 	  Some samsung smart phones support gear vr.
           The samsung gear vr need some special hid input codes.
           This feature enables special hid input codes.
+
+config USB_EXTERNAL_NOTIFY
+	boolean "USB external notify"
+	depends on USB_NOTIFY_LAYER
+	help
+	  Added usb external notify.
+	  The usb external notify broadcast special situation
+	  to muic and charger.

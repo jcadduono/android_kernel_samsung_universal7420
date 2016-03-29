@@ -754,6 +754,7 @@ struct sec_battery_platform_data {
 #endif
 	sec_charger_functions_t chg_functions_setting;
 
+	bool waterproof;
 	bool fake_capacity;
 	bool wchg_ctl_en;
 
