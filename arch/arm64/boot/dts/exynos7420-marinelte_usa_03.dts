@@ -476,6 +476,17 @@
 		};
 	};
 
+	muic {
+		muic,support-list = "OTG","Jig USB On","Jig UART Off",
+				"Jig UART Off + VB","Jig UART On",
+				"TA","USB","CDP","Undefined Charging",
+				"Unofficial ID","Unofficial ID + TA","Unofficial ID + ANY TA",
+				"Deskdock", "Deskdock + VB",
+				"Unofficial ID + USB","Unofficial ID + CDP",
+				"TA or AFC","AFC charger Prepare","AFC charger 5V","AFC charger 9V",
+				"Fuelgauge test","TYPE2 Charger";
+	};
+
 	hsi2c@13660000 {
 		s2mps15_pmic@66 {
 			regulators {

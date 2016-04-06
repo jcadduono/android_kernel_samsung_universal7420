@@ -437,7 +437,7 @@
 			samsung,pin-pud = <3>;
 			samsung,pin-drv = <3>;
 		};
-	}; 
+	};
 
 	pinctrl@15690000 {
 		sub_pmic_irq: sub-pmic-irq {
@@ -893,7 +893,7 @@
 	s6e3hf2_wqxga: s6e3hf2_wqxga_panel {
 		mode = <2>;		/* 0: video mode, 1: DP command mode, 2: MIPI command mode */
 		resolution = <1440 2560>;
-		size = <70 121>;
+		size = <63 112>;
 		timing,refresh = <60>;
 		timing,h-porch = <1 1 1>;
 		timing,v-porch = <15 1 1>;
@@ -907,7 +907,7 @@
 	s6e3hf2_wqhd: s6e3hf2_wqhd_panel {
 		mode = <2>;
 		resolution = <1440 2560>;
-		size = <70 121>;
+		size = <63 112>;
 		timing,refresh = <60>;
 		timing,h-porch = <1 1 1>;
 		timing,v-porch = <15 1 1>;

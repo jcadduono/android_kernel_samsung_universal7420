@@ -83,3 +83,10 @@ config NET_KEY_MIGRATE
 
 	  If unsure, say N.
 
+config L2TP_SHA256_SUPPORT_DCM
+	bool "L2TP SHA256 support docomo"
+	default n
+	depends on XFRM
+	---help---
+	  Support the SHA256 for docomo device.
+

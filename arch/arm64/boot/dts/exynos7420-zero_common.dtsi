@@ -684,7 +684,7 @@
 				"Deskdock", "Deskdock + VB",
 				"Unofficial ID + USB","Unofficial ID + CDP",
 				"TA or AFC","AFC charger Prepare","AFC charger 5V","AFC charger 9V",
-				"Fuelgauge test","HMT";
+				"Fuelgauge test","HMT","TYPE2 Charger";
 		muic,afcmode-tx = /bits/ 8 <0x46>;
 		muic,qc-hv = /bits/ 8 <0x9>;
 	};

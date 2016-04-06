@@ -220,7 +220,11 @@ static struct xfrm_algo_desc aalg_list[] = {
 
 	.uinfo = {
 		.auth = {
+#if defined(CONFIG_L2TP_SHA256_SUPPORT_DCM)
+            .icv_truncbits = 128,
+#else
 			.icv_truncbits = 96,
+#endif
 			.icv_fullbits = 256,
 		}
 	},

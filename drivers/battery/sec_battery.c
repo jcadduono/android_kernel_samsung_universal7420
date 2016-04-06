@@ -190,6 +190,7 @@ static enum power_supply_property sec_battery_props[] = {
 #endif
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_SHADOW,
 	POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_MAX,
 };
 
 static enum power_supply_property sec_power_props[] = {
@@ -3178,7 +3179,7 @@ static void sec_bat_monitor_work(
 	if(battery->cable_type == POWER_SUPPLY_TYPE_WIRELESS) {
 		psy_do_property(battery->pdata->charger_name, get,
 			POWER_SUPPLY_PROP_CURRENT_NOW, value);
-		pr_info("%s: set_input_current: current_avg(%d), imax(%d)-------\n",
+		pr_info("%s: set_input_current: current_avg(%d), imax(%d)\n",
 			__func__, value.intval, battery->current_max);
 		value.intval = battery->current_max;
 		psy_do_property(battery->pdata->charger_name, set,
@@ -4656,7 +4657,7 @@ ssize_t sec_bat_store_attrs(
 			if (x == 1) {
 				if (!(battery->event & EVENT_LCD)) {
 					battery->event |= EVENT_LCD;
-					pr_info("LCD on \n");
+					pr_info("LCD on\n");
 					value.intval = 1;
 					psy_do_property(battery->pdata->charger_name, set,
 						POWER_SUPPLY_PROP_SCOPE, value);
@@ -4664,7 +4665,7 @@ ssize_t sec_bat_store_attrs(
 			} else {
 				if (battery->event & EVENT_LCD) {
 					battery->event &= ~EVENT_LCD;
-					pr_info("LCD off \n");
+					pr_info("LCD off\n");
 					value.intval = 0;
 					psy_do_property(battery->pdata->charger_name, set,
 						POWER_SUPPLY_PROP_SCOPE, value);
@@ -5610,6 +5611,9 @@ static int sec_bat_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL:
 		/*psy_do_property(battery->pdata->charger_name, get,
 						POWER_SUPPLY_PROP_CHARGE_OTG_CONTROL, value);*/
+		break;
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_MAX:
+		val->intval = battery->charging_mode;
 		break;
 	default:
 		return -EINVAL;

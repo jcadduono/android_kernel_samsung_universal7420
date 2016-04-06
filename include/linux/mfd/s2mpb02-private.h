@@ -76,6 +76,8 @@ enum s2mpb02_reg {
 	S2MPB02_REG_LDO_DSCH1,
 	S2MPB02_REG_LDO_DSCH2,
 	S2MPB02_REG_LDO_DSCH3,
+	/* For JPN */
+	S2MPB02_REG_FLED_SHORT_CHECK = 0x65,
 };
 
 /* S2MPB02 regulator ids */

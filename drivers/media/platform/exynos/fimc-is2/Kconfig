@@ -27,6 +27,13 @@ config TORCH_CURRENT_CHANGE_SUPPORT
 	help
           Change torch current in recording mode.
 
+config INIT_TORCH_CURRENT_SUPPORT
+	bool "Set Torch Current Value in init"
+        depends on USE_VENDER_FEATURE
+	default n
+	help
+          Set Torch Current Value in init.
+
 source "drivers/media/platform/exynos/fimc-is2/sensor/Kconfig"
 source "drivers/media/platform/exynos/fimc-is2/ischain/Kconfig"
 source "drivers/media/platform/exynos/fimc-is2/vendor/Kconfig"

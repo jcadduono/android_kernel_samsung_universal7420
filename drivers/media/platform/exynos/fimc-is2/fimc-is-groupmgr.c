@@ -692,6 +692,9 @@ extern int sky81296_torch_ctrl(int state);
 #endif
 #if defined(CONFIG_TORCH_CURRENT_CHANGE_SUPPORT) && defined(CONFIG_LEDS_S2MPB02)
 extern int s2mpb02_set_torch_current(bool movie);
+#ifdef CONFIG_INIT_TORCH_CURRENT_SUPPORT
+extern int s2mpb02_set_init_torch_current(void);
+#endif /* CONFIG_INIT_TORCH_CURRENT_SUPPORT */
 #endif
 
 static void fimc_is_group_set_torch(struct fimc_is_group *group,
@@ -729,6 +732,11 @@ static void fimc_is_group_set_torch(struct fimc_is_group *group,
 		case AA_FLASHMODE_OFF: /*OFF mode*/
 #ifdef CONFIG_LEDS_SKY81296
 			sky81296_torch_ctrl(0);
+#endif
+#if defined(CONFIG_INIT_TORCH_CURRENT_SUPPORT) && \
+	defined(CONFIG_TORCH_CURRENT_CHANGE_SUPPORT) && \
+	defined(CONFIG_LEDS_S2MPB02)
+			s2mpb02_set_init_torch_current();
 #endif
 			break;
 		default:
@@ -1867,6 +1875,8 @@ int fimc_is_group_buffer_queue(struct fimc_is_groupmgr *groupmgr,
 		memset(&frame->shot->uctl.scalerUd, 0, sizeof(struct camera2_scaler_uctl));
 		frame->shot->uctl.scalerUd.orientation = orientation;
 
+		frame->lindex = 0;
+		frame->hindex = 0;
 		frame->fcount = frame->shot->dm.request.frameCount;
 		frame->rcount = frame->shot->ctl.request.frameCount;
 		frame->work_data1 = groupmgr;

@@ -1895,14 +1895,23 @@ static void wq_func_group_30s(struct fimc_is_groupmgr *groupmgr,
 	BUG_ON(!framemgr);
 	BUG_ON(!frame);
 
+	/* perframe error control */
+	if (test_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state)) {
+		if (!status) {
+			if (frame->lindex || frame->hindex)
+				clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+			else
+				status = SHOT_ERR_PERFRAME;
+		}
+	} else {
+		if (status && (frame->lindex || frame->hindex))
+			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+	}
+
 	if (status) {
 		mgrinfo("[ERR] NDONE(%d, E%X(L%X H%X))\n", group, group, frame, frame->index, status,
 			lindex, hindex);
 		done_state = VB2_BUF_STATE_ERROR;
-
-		/* specially force set is enabled when perframe control is fail */
-		if (lindex || hindex)
-			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	}
 
 #ifdef DBG_STREAMING
@@ -1933,14 +1942,23 @@ static void wq_func_group_31s(struct fimc_is_groupmgr *groupmgr,
 	BUG_ON(!framemgr);
 	BUG_ON(!frame);
 
+	/* perframe error control */
+	if (test_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state)) {
+		if (!status) {
+			if (frame->lindex || frame->hindex)
+				clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+			else
+				status = SHOT_ERR_PERFRAME;
+		}
+	} else {
+		if (status && (frame->lindex || frame->hindex))
+			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+	}
+
 	if (status) {
 		mgrinfo("[ERR] NDONE(%d, E%X(L%X H%X))\n", group, group, frame, frame->index, status,
 			lindex, hindex);
 		done_state = VB2_BUF_STATE_ERROR;
-
-		/* specially force set is enabled when perframe control is fail */
-		if (lindex || hindex)
-			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	}
 
 #ifdef DBG_STREAMING
@@ -1970,14 +1988,23 @@ static void wq_func_group_i0s(struct fimc_is_groupmgr *groupmgr,
 	BUG_ON(!framemgr);
 	BUG_ON(!frame);
 
+	/* perframe error control */
+	if (test_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state)) {
+		if (!status) {
+			if (frame->lindex || frame->hindex)
+				clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+			else
+				status = SHOT_ERR_PERFRAME;
+		}
+	} else {
+		if (status && (frame->lindex || frame->hindex))
+			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+	}
+
 	if (status) {
 		mgrinfo("[ERR] NDONE(%d, E%X(L%X H%X))\n", group, group, frame, frame->index, status,
 			lindex, hindex);
 		done_state = VB2_BUF_STATE_ERROR;
-
-		/* specially force set is enabled when perframe control is fail */
-		if (lindex || hindex)
-			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	}
 
 #ifdef DBG_STREAMING
@@ -2007,14 +2034,23 @@ static void wq_func_group_i1s(struct fimc_is_groupmgr *groupmgr,
 	BUG_ON(!framemgr);
 	BUG_ON(!frame);
 
+	/* perframe error control */
+	if (test_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state)) {
+		if (!status) {
+			if (frame->lindex || frame->hindex)
+				clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+			else
+				status = SHOT_ERR_PERFRAME;
+		}
+	} else {
+		if (status && (frame->lindex || frame->hindex))
+			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+	}
+
 	if (status) {
 		mgrinfo("[ERR] NDONE(%d, E%X(L%X H%X))\n", group, group, frame, frame->index, status,
 			lindex, hindex);
 		done_state = VB2_BUF_STATE_ERROR;
-
-		/* specially force set is enabled when perframe control is fail */
-		if (lindex || hindex)
-			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	}
 
 #ifdef DBG_STREAMING
@@ -2044,14 +2080,23 @@ static void wq_func_group_dis(struct fimc_is_groupmgr *groupmgr,
 	BUG_ON(!framemgr);
 	BUG_ON(!frame);
 
+	/* perframe error control */
+	if (test_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state)) {
+		if (!status) {
+			if (frame->lindex || frame->hindex)
+				clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+			else
+				status = SHOT_ERR_PERFRAME;
+		}
+	} else {
+		if (status && (frame->lindex || frame->hindex))
+			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+	}
+
 	if (status) {
 		mgrinfo("[ERR] NDONE(%d, E%X(L%X H%X))\n", group, group, frame, frame->index, status,
 			lindex, hindex);
 		done_state = VB2_BUF_STATE_ERROR;
-
-		/* specially force set is enabled when perframe control is fail */
-		if (lindex || hindex)
-			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
 	}
 
 #ifdef DBG_STREAMING

@@ -33,6 +33,10 @@
 #include <linux/ipc_router.h>
 #include <linux/ipc_router_xprt.h>
 #include <linux/kref.h>
+#if defined (CONFIG_IPC_ROUTER_CRASH)
+#include <linux/hrtimer.h>
+#include <linux/mdm_hsic_pm.h>
+#endif
 #include <mach/subsystem_notif.h>
 
 #include <asm/byteorder.h>
@@ -168,6 +172,9 @@ struct msm_ipc_router_remote_port {
 	struct list_head conn_info_list;
 	void *sec_rule;
 	struct msm_ipc_server *server;
+#if defined (CONFIG_IPC_ROUTER_CRASH)
+	struct hrtimer tx_quota_timer;
+#endif
 };
 
 struct msm_ipc_router_xprt_info {
@@ -224,6 +231,22 @@ enum {
 	DOWN,
 	UP,
 };
+
+#if defined (CONFIG_IPC_ROUTER_CRASH)
+enum hrtimer_restart tx_quota_timer_func(struct hrtimer *timer)
+{
+	struct msm_ipc_router_remote_port *rport_ptr =
+		container_of(timer, struct msm_ipc_router_remote_port, tx_quota_timer);	
+
+	if (rport_ptr->tx_quota_cnt >= IPC_ROUTER_DEFAULT_RX_QUOTA) {
+		IPC_RTR_ERR("%s: tx_quota_cnt: %d\n", __func__, rport_ptr->tx_quota_cnt);
+		set_ap2mdm_errfatal();
+	} else
+		IPC_RTR_ERR("%s: tx_quota_cnt: %d\n", __func__, rport_ptr->tx_quota_cnt);
+
+	return HRTIMER_NORESTART;
+}
+#endif
 
 static void init_routing_table(void)
 {
@@ -1204,6 +1227,12 @@ static struct msm_ipc_router_remote_port *ipc_router_create_rport(
 	rport_ptr->sec_rule = NULL;
 	rport_ptr->server = NULL;
 	rport_ptr->tx_quota_cnt = 0;
+
+#if defined (CONFIG_IPC_ROUTER_CRASH)
+	hrtimer_init(&rport_ptr->tx_quota_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	rport_ptr->tx_quota_timer.function = tx_quota_timer_func;
+#endif
+
 	kref_init(&rport_ptr->ref);
 	mutex_init(&rport_ptr->rport_lock_lhb2);
 	INIT_LIST_HEAD(&rport_ptr->resume_tx_port_list);
@@ -2239,6 +2268,10 @@ static int process_resume_tx_msg(union rr_control_msg *msg,
 	}
 	mutex_lock(&rport_ptr->rport_lock_lhb2);
 	rport_ptr->tx_quota_cnt = 0;
+#if defined (CONFIG_IPC_ROUTER_CRASH)
+	IPC_RTR_ERR("%s: cancel tx_quota_timer\n", __func__);
+	hrtimer_cancel(&rport_ptr->tx_quota_timer);
+#endif
 	post_resume_tx(rport_ptr, pkt, msg);
 	mutex_unlock(&rport_ptr->rport_lock_lhb2);
 	kref_put(&rport_ptr->ref, ipc_router_release_rport);
@@ -2645,6 +2678,10 @@ static int ipc_router_tx_wait(struct msm_ipc_port *src,
 	struct msm_ipc_resume_tx_port *resume_tx_port;
 	int ret;
 
+#if defined (CONFIG_IPC_ROUTER_CRASH)
+	pr_info("%s , tx_quota_cnt: %d\n", __func__, rport_ptr->tx_quota_cnt);
+#endif
+
 	if (unlikely(!src || !rport_ptr)) {
 		IPC_RTR_ERR("%s: src or rport_ptr is null\n", __func__);
 		return -EINVAL;
@@ -2683,7 +2720,10 @@ static int ipc_router_tx_wait(struct msm_ipc_port *src,
 check_timeo:
 		mutex_unlock(&rport_ptr->rport_lock_lhb2);
 		if (!timeout) {
-			IPC_RTR_ERR("%s: timeout value is empty\n", __func__);
+#if defined (CONFIG_IPC_ROUTER_CRASH)
+			IPC_RTR_ERR("%s: timeout value is empty, tx_quota_cnt: %d\n", __func__, rport_ptr->tx_quota_cnt);
+			hrtimer_start(&rport_ptr->tx_quota_timer, ktime_set(5, 0), HRTIMER_MODE_REL);
+#endif
 			return -EAGAIN;
 		} else if (timeout < 0) {
 			ret = wait_event_interruptible(src->port_tx_wait_q,

@@ -17,6 +17,7 @@
 #include "exynos7420-zerolte_fingerprint-sensor_00.dtsi"
 #include "exynos7420-zerolte_mst.dtsi"
 #include "exynos7420-zeroflte_svcled.dtsi"
+#include "exynos7420-zeroflte_motor.dtsi"
 
 / {
 	model = "Samsung ZERO-F LTE CDMA rev07 board based on Exynos7420(EVT1), mPOP";
@@ -936,7 +937,7 @@
 
 		si4705@11 {
 			compatible = "si4705,fmradio";
-			reg = <0x11>;	
+			reg = <0x11>;
 			pinctrl-0 = <&si4705_i2c &si4705_reset &si4705_irq>;
 			si4705,reset = <&gpf4 7 0>;
 			si4705,interrupt = <&gpa1 3 0>;
@@ -1000,7 +1001,7 @@
 	s6e3ha0_wqhd: s6e3ha0_wqhd_panel {
 		mode = <2>;
 		resolution = <1440 2560>;
-		size = <70 121>;
+		size = <63 112>;
 		timing,refresh = <60>;
 		timing,h-porch = <1 1 1>;
 		timing,v-porch = <15 1 1>;
@@ -1009,9 +1010,5 @@
 		mic = <1>;
 		mic_ver = <2>;
 		type_of_ddi = <0>;
-	};
-	haptic {
-		haptic,duty = <33670>;
-		haptic,period = <33510>;
 	};
 };

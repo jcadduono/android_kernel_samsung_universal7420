@@ -23,3 +23,10 @@ config IPC_ROUTER_SECURITY
 	  once configured with the security rules will ensure that the
 	  sender of the message to a service belongs to the relevant
 	  Linux group as configured by the security script.
+
+config IPC_ROUTER_CRASH
+	depends on IPC_ROUTER
+	bool "IPC Router Security support"
+	help
+	  This feature of IPC Router will cause the cp crash
+	  when ipc_router didn't get the RESUME_TX cmd from cp side.

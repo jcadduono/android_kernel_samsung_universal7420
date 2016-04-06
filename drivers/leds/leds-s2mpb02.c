@@ -35,6 +35,7 @@ struct s2mpb02_led_data {
 	struct work_struct work;
 	struct mutex lock;
 	spinlock_t value_lock;
+	int init_brightness;
 	int brightness;
 	int test_brightness;
 };
@@ -115,12 +116,23 @@ static void led_set(struct s2mpb02_led_data *led_data)
 					S2MPB02_REG_FLED_CTRL1, S2MPB02_FLED_ENABLE_MODE_MASK, value);
 		if (unlikely(ret))
 			goto error_set_bits;
+#ifdef CONFIG_INIT_TORCH_CURRENT_SUPPORT
+		/* set current */
+		ret = s2mpb02_set_bits(led_data->i2c, S2MPB02_REG_FLED_CUR1,
+					  leds_mask[id], data->init_brightness << leds_shift[id]);
+		if (unlikely(ret))
+			goto error_set_bits;
 
+		ret = s2mpb02_set_bits(led_data->i2c, S2MPB02_REG_FLED_SHORT_CHECK, 0xFF, 0x40);
+		if (unlikely(ret))
+			goto error_set_bits;
+#else
 		/* set current */
 		ret = s2mpb02_set_bits(led_data->i2c, S2MPB02_REG_FLED_CUR1,
 					  leds_mask[id], data->brightness << leds_shift[id]);
 		if (unlikely(ret))
 			goto error_set_bits;
+#endif
 	} else {
 		/* set current */
 		ret = s2mpb02_set_bits(led_data->i2c, S2MPB02_REG_FLED_CUR1,
@@ -174,8 +186,16 @@ static int s2mpb02_led_setup(struct s2mpb02_led_data *led_data)
 				S2MPB02_FLED_CTRL1_LV_DISABLE, S2MPB02_FLED_CTRL1_LV_EN_MASK);
 
 	/* set current & timeout */
+#ifdef CONFIG_INIT_TORCH_CURRENT_SUPPORT
+	ret |= s2mpb02_update_reg(led_data->i2c, S2MPB02_REG_FLED_CUR1,
+				data->init_brightness << leds_shift[id], leds_mask[id]);
+
+	ret |= s2mpb02_update_reg(led_data->i2c, S2MPB02_REG_FLED_SHORT_CHECK,
+				0x40, 0xFF);
+#else
 	ret |= s2mpb02_update_reg(led_data->i2c, S2MPB02_REG_FLED_CUR1,
 				  data->brightness << leds_shift[id], leds_mask[id]);
+#endif
 	ret |= s2mpb02_update_reg(led_data->i2c, S2MPB02_REG_FLED_TIME1,
 				  data->timeout << leds_shift[id], leds_mask[id]);
 
@@ -230,11 +250,40 @@ int s2mpb02_set_torch_current(bool torch_mode)
 	if (unlikely(ret)) {
 		pr_err("%s: failed to set FLED_CUR1, %d\n", __func__, ret);
 	}
+	mutex_unlock(&led_data->lock);
+	return ret;
+}
 
+#ifdef CONFIG_INIT_TORCH_CURRENT_SUPPORT
+int s2mpb02_set_init_torch_current(void)
+{
+	struct s2mpb02_led_data *led_data = global_led_datas[S2MPB02_TORCH_LED_1];
+	struct s2mpb02_led *data = led_data->data;
+	int ret = 0;
+	u8 reg_value = 0;
+	u8 check_value = 0;
+
+	pr_info("%s: init:torch/flash.\n", __func__);
+	mutex_lock(&led_data->lock);
+
+	check_value = s2mpb02_led_get_en_value(led_data, 1);
+	ret = s2mpb02_read_reg(led_data->i2c, S2MPB02_REG_FLED_CTRL1, &reg_value);
+
+	if (check_value & reg_value) {
+		pr_info("already flashlight On\n");
+	} else {
+		/* set current */
+		ret = s2mpb02_set_bits(led_data->i2c, S2MPB02_REG_FLED_CUR1,
+	                  leds_mask[data->id], data->init_brightness << leds_shift[data->id]);
+		if (unlikely(ret)) {
+			pr_err("%s: failed to set FLED_CUR1, %d\n", __func__, ret);
+		}
+	}
 	mutex_unlock(&led_data->lock);
 	return ret;
 }
 #endif
+#endif /* CONFIG_TORCH_CURRENT_CHANGE_SUPPORT */
 
 ssize_t s2mpb02_store(struct device *dev,
 			struct device_attribute *attr, const char *buf,
@@ -275,9 +324,15 @@ ssize_t s2mpb02_store(struct device *dev,
 	}
 
 	if (value <= 0) {
+#ifdef CONFIG_INIT_TORCH_CURRENT_SUPPORT
+		s2mpb02_set_bits(global_led_datas[S2MPB02_TORCH_LED_1]->i2c, S2MPB02_REG_FLED_CUR1,
+				leds_mask[global_led_datas[S2MPB02_TORCH_LED_1]->data->id],
+				global_led_datas[S2MPB02_TORCH_LED_1]->data->init_brightness << leds_shift[global_led_datas[S2MPB02_TORCH_LED_1]->data->id]);
+#else
 		s2mpb02_set_bits(global_led_datas[S2MPB02_TORCH_LED_1]->i2c, S2MPB02_REG_FLED_CUR1,
 				leds_mask[global_led_datas[S2MPB02_TORCH_LED_1]->data->id],
 				original_brightness << leds_shift[global_led_datas[S2MPB02_TORCH_LED_1]->data->id]);
+#endif
 		global_led_datas[S2MPB02_TORCH_LED_1]->data->brightness = original_brightness;
 	}
 
@@ -421,6 +476,15 @@ static int s2mpb02_led_probe(struct platform_device *pdev)
 
 	for (i = 0; i != pdata->num_leds; ++i) {
 		pr_info("%s led%d setup ...\n", __func__, i);
+
+#ifdef CONFIG_INIT_TORCH_CURRENT_SUPPORT
+		if (i == S2MPB02_FLASH_LED_1) {
+			pdata->leds[i].init_brightness = pdata->leds[i].brightness;
+		} else {
+			pdata->leds[i].init_brightness = 0x0;
+		}
+		pr_info("%s : init_brightness(%d) : 0x%x ...\n", __func__, i, pdata->leds[i].init_brightness);
+#endif
 
 		data = kzalloc(sizeof(struct s2mpb02_led), GFP_KERNEL);
 		if (unlikely(!data)) {

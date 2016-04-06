@@ -128,6 +128,7 @@ enum s2mpb02_torch_timeout {
 struct s2mpb02_led {
 	const char *name;
 	int id;
+	int init_brightness;
 	int brightness;
 	int timeout;
 	int irda_off;

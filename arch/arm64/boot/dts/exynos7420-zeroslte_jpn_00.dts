@@ -773,7 +773,7 @@
 	s6e3hf2_wqhd: s6e3hf2_wqhd_panel {
 		mode = <2>;
 		resolution = <1440 2560>;
-		size = <70 121>;
+		size = <63 112>;
 		timing,refresh = <60>;
 		timing,h-porch = <1 1 1>;
 		timing,v-porch = <15 1 1>;

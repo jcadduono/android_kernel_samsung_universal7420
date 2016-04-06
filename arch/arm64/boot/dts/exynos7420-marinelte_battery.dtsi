@@ -68,6 +68,7 @@
 		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
 		/* .temp_cohot = -1000; */
 		/* .temp_cocold = -4325; */
+		battery,waterproof;
 
 		battery,chip_vendor = "LSI";
 		battery,temp_adc_type = <1>; /* SEC_BATTERY_ADC_TYPE_AP */
