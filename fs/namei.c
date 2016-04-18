@@ -39,9 +39,6 @@
 
 #include "internal.h"
 #include "mount.h"
-#ifdef CONFIG_SDCARD_FS
-#include "sdcardfs/sdcardfs.h"
-#endif
 
 /* [Feb-1997 T. Schoebel-Theuer]
  * Fundamental changes in the pathname lookup mechanisms (namei)
@@ -3478,7 +3475,7 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
  * writeout happening, and we don't want to prevent access to the directory
  * while waiting on the I/O.
  */
-long do_unlinkat(int dfd, const char __user *pathname, bool propagate)
+static long do_unlinkat(int dfd, const char __user *pathname)
 {
 	int error;
 	struct filename *name;
@@ -3486,11 +3483,8 @@ long do_unlinkat(int dfd, const char __user *pathname, bool propagate)
 	struct nameidata nd;
 	struct inode *inode = NULL;
 	unsigned int lookup_flags = 0;
-#ifdef CONFIG_SDCARD_FS
-	/* temp code to avoid issue */
 	char *path_buf = NULL;
 	char *propagate_path = NULL;
-#endif
 retry:
 	name = user_path_parent(dfd, pathname, &nd, lookup_flags);
 	if (IS_ERR(name))
@@ -3515,20 +3509,10 @@ retry:
 		inode = dentry->d_inode;
 		if (!inode)
 			goto slashes;
-#ifdef CONFIG_SDCARD_FS
-		/* temp code to avoid issue */
-		if (inode->i_sb->s_op->unlink_callback && propagate) {
-			struct inode *lower_inode = inode;
-			while (lower_inode->i_op->get_lower_inode) {
-				if (inode->i_sb->s_magic == SDCARDFS_SUPER_MAGIC
-						&& SDCARDFS_SB(inode->i_sb)->options.label) {
-					path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
-					propagate_path = dentry_path_raw(dentry, path_buf, PATH_MAX);
-				}
-				lower_inode = lower_inode->i_op->get_lower_inode(lower_inode);
-			}
+		if (inode->i_sb->s_op->unlink_callback) {
+			path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+			propagate_path = dentry_path_raw(dentry, path_buf, PATH_MAX);
 		}
-#endif
 		ihold(inode);
 		error = security_path_unlink(&nd.path, dentry);
 		if (error)
@@ -3538,13 +3522,10 @@ exit2:
 		dput(dentry);
 	}
 	mutex_unlock(&nd.path.dentry->d_inode->i_mutex);
-#ifdef CONFIG_SDCARD_FS
-	/* temp code to avoid issue */
-	if (path_buf && !IS_ERR(path_buf) && !error && propagate) {
-		inode->i_sb->s_op->unlink_callback(inode, propagate_path);
+	if (path_buf && !error) {
+		inode->i_sb->s_op->unlink_callback(inode->i_sb, propagate_path);
 		kfree(path_buf);
 	}
-#endif
 	if (inode)
 		iput(inode);	/* truncate the inode here */
 	mnt_drop_write(nd.path.mnt);
@@ -3572,12 +3553,12 @@ SYSCALL_DEFINE3(unlinkat, int, dfd, const char __user *, pathname, int, flag)
 	if (flag & AT_REMOVEDIR)
 		return do_rmdir(dfd, pathname);
 
-	return do_unlinkat(dfd, pathname, true);
+	return do_unlinkat(dfd, pathname);
 }
 
 SYSCALL_DEFINE1(unlink, const char __user *, pathname)
 {
-	return do_unlinkat(AT_FDCWD, pathname, true);
+	return do_unlinkat(AT_FDCWD, pathname);
 }
 
 int vfs_symlink(struct inode *dir, struct dentry *dentry, const char *oldname)

@@ -3,7 +3,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -26,7 +26,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_msgbuf.c 605475 2015-12-10 12:49:49Z $
+ * $Id: dhd_msgbuf.c 610535 2016-01-07 06:45:24Z $
  */
 
 
@@ -2945,15 +2945,6 @@ dhd_prot_rxbuf_post(dhd_pub_t *dhd, uint16 count, bool use_rsv_pktid)
 		}
 
 		if (PHYSADDRISZERO(pa)) {
-			if (SECURE_DMA_ENAB(dhd->osh)) {
-				DHD_GENERAL_LOCK(dhd, flags);
-				SECURE_DMA_UNMAP(dhd->osh, pa, pktlen, DMA_RX, 0, DHD_DMAH_NULL,
-				    ring->dma_buf.secdma, 0);
-				DHD_GENERAL_UNLOCK(dhd, flags);
-			} else {
-				DMA_UNMAP(dhd->osh, pa, pktlen, DMA_RX, 0, DHD_DMAH_NULL);
-			}
-
 			PKTFREE(dhd->osh, p, FALSE);
 			DHD_ERROR(("Invalid phyaddr 0\n"));
 			ASSERT(0);
@@ -4163,7 +4154,7 @@ dhd_prot_txdata(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 		pa = DMA_MAP(dhd->osh, PKTDATA(dhd->osh, PKTBUF), pktlen, DMA_TX, PKTBUF, 0);
 	}
 
-	if ((PHYSADDRHI(pa) == 0) && (PHYSADDRLO(pa) == 0)) {
+	if (PHYSADDRISZERO(pa)) {
 		DHD_ERROR(("Something really bad, unless 0 is a valid phyaddr\n"));
 		ASSERT(0);
 	}

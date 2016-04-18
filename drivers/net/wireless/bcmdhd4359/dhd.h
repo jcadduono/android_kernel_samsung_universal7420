@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd.h 610549 2016-01-07 07:17:20Z $
+ * $Id: dhd.h 613139 2016-01-17 13:46:29Z $
  */
 
 /****************
@@ -239,7 +239,8 @@ enum dhd_dongledump_type {
 	DUMP_TYPE_SCAN_BUSY,
 	DUMP_TYPE_BY_SYSDUMP,
 	DUMP_TYPE_BY_LIVELOCK,
-	DUMP_TYPE_AP_LINKUP_FAILURE
+	DUMP_TYPE_AP_LINKUP_FAILURE,
+	DUMP_TYPE_AP_ABNORMAL_ACCESS
 };
 
 enum dhd_hang_reason {
@@ -797,95 +798,76 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 }
 
 #ifdef DHD_DEBUG_WAKE_LOCK
+#define PRINT_CALL_INFO(str) printf("%s: %s %d\n", \
+	str, __FUNCTION__, __LINE__)
+
+#define PRINT_CALL_INFO_TIMEOUT(str, val) \
+	printf("%s[%d]: %s %d\n", str, val, __FUNCTION__, __LINE__)
+
+#else
+#define PRINT_CALL_INFO(str)
+#define PRINT_CALL_INFO_TIMEOUT(str, val)
+#endif /* DHD_DEBUG_WAKE_LOCK */
 #define DHD_OS_WAKE_LOCK(pub) \
 	do { \
-		printf("call wake_lock: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wakelock"); \
 		dhd_os_wake_lock(pub); \
 	} while (0)
 #define DHD_OS_WAKE_UNLOCK(pub) \
 	do { \
-		printf("call wake_unlock: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wake_unlock"); \
 		dhd_os_wake_unlock(pub); \
 	} while (0)
 #define DHD_EVENT_WAKE_LOCK(pub) \
 	do { \
-		printf("call event_wake lock: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call event_wake lock"); \
 	dhd_event_wake_lock(pub); \
 	} while (0)
 #define DHD_EVENT_WAKE_UNLOCK(pub) \
 	do { \
-		printf("call event_wake unlock: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call event_wake unlock"); \
 	dhd_event_wake_unlock(pub); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_TIMEOUT(pub) \
 	do { \
-		printf("call wake_lock_timeout: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wake_lock_timeout"); \
 		dhd_os_wake_lock_timeout(pub); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_RX_TIMEOUT_ENABLE(pub, val) \
 	do { \
-		printf("call wake_lock_rx_timeout_enable[%d]: %s %d\n", \
-			val, __FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO_TIMEOUT("call wake_lock_rx_timeout_enable", val); \
 		dhd_os_wake_lock_rx_timeout_enable(pub, val); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_ENABLE(pub, val) \
 	do { \
-		printf("call wake_lock_ctrl_timeout_enable[%d]: %s %d\n", \
-			val, __FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO_TIMEOUT("call wake_lock_ctrl_timeout_enable", val); \
 		dhd_os_wake_lock_ctrl_timeout_enable(pub, val); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_CANCEL(pub) \
 	do { \
-		printf("call wake_lock_ctrl_timeout_cancel: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wake_lock_ctrl_timeout_cancel"); \
 		dhd_os_wake_lock_ctrl_timeout_cancel(pub); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_WAIVE(pub) \
 	do { \
-		printf("call wake_lock_waive: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wake_lock_waive"); \
 		dhd_os_wake_lock_waive(pub); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_RESTORE(pub) \
 	do { \
-		printf("call wake_lock_restore: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wake_lock_restore"); \
 		dhd_os_wake_lock_restore(pub); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_INIT(dhd) \
 	do { \
-		printf("call wake_lock_init: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wake_lock_init"); \
 		dhd_os_wake_lock_init(dhd); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_DESTROY(dhd) \
 	do { \
-		printf("call wake_lock_destroy: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_CALL_INFO("call wake_lock_destroy"); \
 		dhd_os_wake_lock_destroy(dhd); \
 	} while (0)
-#else
-#define DHD_OS_WAKE_LOCK(pub)			dhd_os_wake_lock(pub)
-#define DHD_OS_WAKE_UNLOCK(pub)		dhd_os_wake_unlock(pub)
-#define DHD_EVENT_WAKE_LOCK(pub)			dhd_event_wake_lock(pub)
-#define DHD_EVENT_WAKE_UNLOCK(pub)		dhd_event_wake_unlock(pub)
-#define DHD_OS_WAKE_LOCK_TIMEOUT(pub)		dhd_os_wake_lock_timeout(pub)
-#define DHD_OS_WAKE_LOCK_RX_TIMEOUT_ENABLE(pub, val) \
-	dhd_os_wake_lock_rx_timeout_enable(pub, val)
-#define DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_ENABLE(pub, val) \
-	dhd_os_wake_lock_ctrl_timeout_enable(pub, val)
-#define DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_CANCEL(pub) \
-	dhd_os_wake_lock_ctrl_timeout_cancel(pub)
-#define DHD_OS_WAKE_LOCK_WAIVE(pub)			dhd_os_wake_lock_waive(pub)
-#define DHD_OS_WAKE_LOCK_RESTORE(pub)		dhd_os_wake_lock_restore(pub)
-#define DHD_OS_WAKE_LOCK_INIT(dhd)		dhd_os_wake_lock_init(dhd);
-#define DHD_OS_WAKE_LOCK_DESTROY(dhd)		dhd_os_wake_lock_destroy(dhd);
-#endif /* DHD_DEBUG_WAKE_LOCK */
 
 #define DHD_OS_WD_WAKE_LOCK(pub)		dhd_os_wd_wake_lock(pub)
 #define DHD_OS_WD_WAKE_UNLOCK(pub)		dhd_os_wd_wake_unlock(pub)
@@ -897,22 +879,21 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 #endif /* BCMPCIE_OOB_HOST_WAKE */
 #ifdef DHD_USE_SCAN_WAKELOCK
 #ifdef DHD_DEBUG_SCAN_WAKELOCK
+#define PRINT_SCAN_CALL(str) printf("%s: %s %d\n", \
+		str, __FUNCTION__, __LINE__)
+#else
+#define PRINT_SCAN_CALL(str)
+#endif /* DHD_DEBUG_SCAN_WAKELOCK */
 #define DHD_OS_SCAN_WAKE_LOCK_TIMEOUT(pub, val) \
 	do { \
-		printf("call wake_lock_scan: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_SCAN_CALL("call wake_lock_scan"); \
 		dhd_os_scan_wake_lock_timeout(pub, val); \
 	} while (0)
 #define DHD_OS_SCAN_WAKE_UNLOCK(pub) \
 	do { \
-		printf("call wake_unlock_scan: %s %d\n", \
-			__FUNCTION__, __LINE__); \
+		PRINT_SCAN_CALL("call wake_unlock_scan"); \
 		dhd_os_scan_wake_unlock(pub); \
 	} while (0)
-#else
-#define DHD_OS_SCAN_WAKE_LOCK_TIMEOUT(pub, val)		dhd_os_scan_wake_lock_timeout(pub, val)
-#define DHD_OS_SCAN_WAKE_UNLOCK(pub)			dhd_os_scan_wake_unlock(pub)
-#endif /* DHD_DEBUG_SCAN_WAKELOCK */
 #else
 #define DHD_OS_SCAN_WAKE_LOCK_TIMEOUT(pub, val)
 #define DHD_OS_SCAN_WAKE_UNLOCK(pub)
@@ -1030,7 +1011,9 @@ extern int *dhd_dev_get_feature_set_matrix(struct net_device *dev,      int *num
 #ifdef CUSTOM_FORCE_NODFS_FLAG
 extern int dhd_dev_set_nodfs(struct net_device *dev, uint nodfs);
 #endif /* CUSTOM_FORCE_NODFS_FLAG */
-/* OS innependent layer functions */
+/* OS independent layer functions */
+extern void dhd_os_dhdiovar_lock(dhd_pub_t *pub);
+extern void dhd_os_dhdiovar_unlock(dhd_pub_t *pub);
 extern int dhd_os_proto_block(dhd_pub_t * pub);
 extern int dhd_os_proto_unblock(dhd_pub_t * pub);
 extern int dhd_os_ioctl_resp_wait(dhd_pub_t * pub, uint * condition);
@@ -1149,7 +1132,7 @@ extern int net_os_send_hang_message(struct net_device *dev);
 extern int net_os_send_hang_message_reason(struct net_device *dev, const char *string_num);
 extern bool dhd_wowl_cap(void *bus);
 extern int wl_host_event(dhd_pub_t *dhd_pub, int *idx, void *pktdata, size_t pktlen,
-                         wl_event_msg_t *, void **data_ptr,  void *);
+	wl_event_msg_t *, void **data_ptr,  void *);
 
 extern void wl_event_to_host_order(wl_event_msg_t * evt);
 extern int wl_host_event_get_data(void *pktdata, wl_event_msg_t *event, void **data_ptr);
@@ -1659,6 +1642,7 @@ extern void dhd_lb_stats_rxc_percpu_cnt_incr(dhd_pub_t *dhdp);
 extern bool dhd_runtimepm_state(dhd_pub_t *dhd);
 extern bool dhd_runtime_bus_wake(struct dhd_bus *bus, bool wait, void *func_addr);
 extern bool dhdpcie_runtime_bus_wake(dhd_pub_t *dhdp, bool wait, void *func_addr);
+extern void dhdpcie_block_runtime_pm(dhd_pub_t *dhdp);
 extern bool dhdpcie_is_resume_done(dhd_pub_t *dhdp);
 extern void dhd_runtime_pm_disable(dhd_pub_t *dhdp);
 extern void dhd_runtime_pm_enable(dhd_pub_t *dhdp);

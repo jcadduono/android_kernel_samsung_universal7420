@@ -1,7 +1,7 @@
 /*
  * HND generic pktq operation primitives
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: hnd_pktq.c 605726 2015-12-11 07:08:16Z $
+ * $Id: hnd_pktq.c 611485 2016-01-11 09:48:07Z $
  */
 
 #include <typedefs.h>
@@ -65,6 +65,7 @@ pktq_penq(struct pktq *pq, int prec, void *p)
 
 	ASSERT(!pktq_full(pq));
 	ASSERT(!pktq_pfull(pq, prec));
+	PKTSETLINK(p, NULL);
 
 	q = &pq->q[prec];
 
@@ -103,6 +104,7 @@ pktq_penq_head(struct pktq *pq, int prec, void *p)
 
 	ASSERT(!pktq_full(pq));
 	ASSERT(!pktq_pfull(pq, prec));
+	PKTSETLINK(p, NULL);
 
 	q = &pq->q[prec];
 

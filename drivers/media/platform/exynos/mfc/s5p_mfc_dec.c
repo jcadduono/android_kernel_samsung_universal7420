@@ -2826,16 +2826,22 @@ static int s5p_mfc_stop_streaming(struct vb2_queue *q)
 			need_to_dpb_flush(ctx)) {
 		int ret = 0;
 
-		prev_state = ctx->state;
 		/* If a H/W operation is in progress, wait for it complete */
-		ret = wait_event_interruptible_timeout(ctx->queue,
-				(dev->hw_lock == 0),
-				msecs_to_jiffies(MFC_INT_TIMEOUT));
-		if (ret == 0) {
-			mfc_err_dev("Waiting for hardware to finish timed out\n");
-			ret = -EIO;
-			return ret;
+		if (dev->hw_lock) {
+			struct s5p_mfc_ctx *wait_ctx;
+
+			index = find_first_bit(&dev->hw_lock, MFC_NUM_CONTEXTS);
+			wait_ctx = dev->ctx[index];
+			ret = wait_event_interruptible_timeout(wait_ctx->queue,
+					(dev->hw_lock == 0),
+					msecs_to_jiffies(MFC_INT_TIMEOUT));
+			if (ret == 0) {
+				mfc_err_dev("Waiting for hardware to finish timed out\n");
+				return -EIO;
+			}
 		}
+
+		prev_state = ctx->state;
 		ctx->state = MFCINST_DPB_FLUSHING;
 		spin_lock_irq(&dev->condlock);
 		set_bit(ctx->num, &dev->ctx_work_bits);

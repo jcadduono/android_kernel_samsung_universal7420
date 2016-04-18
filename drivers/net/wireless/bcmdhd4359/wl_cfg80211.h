@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_cfg80211.h 603268 2015-12-01 14:32:19Z $
+ * $Id: wl_cfg80211.h 615406 2016-01-27 12:49:23Z $
  */
 
 /**
@@ -589,6 +589,21 @@ typedef struct wl_if_event_info {
 #define GET_BSS_INFO_LEN 90
 #endif /* DHD_ENABLE_BIGDATA_LOGGING */
 
+#ifdef WES_SUPPORT
+#ifdef CUSTOMER_SCAN_TIMEOUT_SETTING
+#define DEFAULT_SCAN_CHANNEL_TIME	40
+#define DEFAULT_SCAN_HOME_TIME	45
+#define DEFAULT_SCAN_HOME_AWAY_TIME	100
+#define CUSTOMER_WL_SCAN_TIMER_INTERVAL_MS	25000 /* Scan timeout */
+enum wl_custom_scan_time_type {
+	WL_CUSTOM_SCAN_CHANNEL_TIME = 0,
+	WL_CUSTOM_SCAN_HOME_TIME,
+	WL_CUSTOM_SCAN_HOME_AWAY_TIME
+};
+extern s32 wl_cfg80211_custom_scan_time(enum wl_custom_scan_time_type type, int time);
+#endif /* CUSTOMER_SCAN_TIMEOUT_SETTING */
+#endif /* WES_SUPPORT */
+
 /* private data of cfg80211 interface */
 struct bcm_cfg80211 {
 	struct wireless_dev *wdev;	/* representing cfg cfg80211 device */
@@ -757,6 +772,20 @@ struct bcm_cfg80211 {
 #endif /* DHD_ENABLE_BIGDATA_LOGGING */
 	u16 ap_oper_channel;
 	bool revert_ndo_disable;
+#if defined(SUPPORT_RANDOM_MAC_SCAN)
+	bool random_mac_enabled;
+#endif /* SUPPORT_RANDOM_MAC_SCAN */
+#ifdef MFP
+	uint8 *bip_pos;
+	int mfp_mode;
+#endif /* MFP */
+#ifdef WES_SUPPORT
+#ifdef CUSTOMER_SCAN_TIMEOUT_SETTING
+	int custom_scan_channel_time;
+	int custom_scan_home_time;
+	int custom_scan_home_away_time;
+#endif /* CUSTOMER_SCAN_TIMEOUT_SETTING */
+#endif /* WES_SUPPORT */
 };
 
 #if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == \
@@ -1281,17 +1310,24 @@ wl_get_netinfo_by_wdev(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev)
 #elif defined(WLAN_AKM_SUITE_FT_PSK)
 #define IS_AKM_SUITE_FT(sec) (sec->wpa_auth == WLAN_AKM_SUITE_FT_PSK)
 #else
-#define IS_AKM_SUITE_FT(sec) false
+#define IS_AKM_SUITE_FT(sec) ({BCM_REFERENCE(sec); FALSE;})
 #endif /* WLAN_AKM_SUITE_FT_8021X && WLAN_AKM_SUITE_FT_PSK */
 #else
-#define IS_AKM_SUITE_FT(sec) false
+#define IS_AKM_SUITE_FT(sec) ({BCM_REFERENCE(sec); FALSE;})
 #endif /* WLFBT */
 
 #ifdef BCMCCX
 #define IS_AKM_SUITE_CCKM(sec) (sec->wpa_auth == WLAN_AKM_SUITE_CCKM)
 #else
-#define IS_AKM_SUITE_CCKM(sec) false
+#define IS_AKM_SUITE_CCKM(sec) ({BCM_REFERENCE(sec); FALSE;})
 #endif /* BCMCCX */
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
+#define STA_INFO_BIT(info) (1ul << NL80211_STA_ ## info)
+#define strnicmp(str1, str2, len) strncasecmp((str1), (str2), (len))
+#else
+#define STA_INFO_BIT(info) (STATION_ ## info)
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)) */
 
 extern s32 wl_cfg80211_attach(struct net_device *ndev, void *context);
 extern s32 wl_cfg80211_attach_post(struct net_device *ndev);
@@ -1526,7 +1562,10 @@ extern uint8 *wl_get_up_table(void);
 #define P2PO_COOKIE     65535
 u64 wl_cfg80211_get_new_roc_id(struct bcm_cfg80211 *cfg);
 #if defined(SUPPORT_RANDOM_MAC_SCAN)
+int wl_cfg80211_set_random_mac(struct net_device *dev, bool enable);
 int wl_cfg80211_random_mac_enable(struct net_device *dev);
 int wl_cfg80211_random_mac_disable(struct net_device *dev);
 #endif /* SUPPORT_RANDOM_MAC_SCAN */
+int wl_cfg80211_iface_count(void);
+int wl_check_dongle_idle(struct wiphy *wiphy);
 #endif /* _wl_cfg80211_h_ */

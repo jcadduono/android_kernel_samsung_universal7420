@@ -129,7 +129,7 @@ static char dsim_panel_get_elvssoffset(struct dsim_device *dsim)
 	if((!bIsHbm) && (panel->interpolation)) {
 		if(panel->weakness_hbm_comp == HBM_COLORBLIND_ON)
 			retVal = -panel->hbm_elvss_comp;
-		else if(panel->weakness_hbm_comp == HBM_GALLERY_ON)
+		else if((panel->weakness_hbm_comp == HBM_GALLERY_ON) || (panel->ldu_correction_state != 0))
 			retVal = -HBM_INTER_22TH_OFFSET[panel->br_index - 65];
 		else
 			pr_info("%s invaid weakness_hbm_comp:%d\n", __func__, panel->weakness_hbm_comp);
@@ -457,7 +457,7 @@ int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 	bool is_weak_mode;
 	bool is_gallery;
 	bool is_max_br;
-	
+
 #ifdef CONFIG_LCD_HMT
 	if(panel->hmt_on == HMT_ON) {
 		pr_info("%s hmt is enabled, plz set hmt brightness \n", __func__);
@@ -466,7 +466,7 @@ int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 #endif
 
 	if (panel->is_br_override && p_br!=panel->override_br_value) {
-		pr_info( "%s : brightness %d canceled by override(%d)\n", 
+		pr_info( "%s : brightness %d canceled by override(%d)\n",
 			__func__, p_br, panel->override_br_value );
 		goto set_br_exit;
 	}
@@ -479,6 +479,12 @@ int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 		dsim_info("%s : this panel does not support dimming\n", __func__);
 		return ret;
 	}
+#ifdef CONFIG_LCD_BURNIN_CORRECTION
+	if(panel->ldu_correction_state != 0) {
+		is_gallery = false;
+	}
+#endif
+
 	if (is_weak_mode)	// color weak mode
 		acutal_br = panel->hbm_inter_br_tbl[p_br];
 	else if(is_gallery)	// gallery
@@ -519,7 +525,15 @@ int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 	} else if(is_max_br) {
 		panel->acl_enable = ACL_OPR_8P;
 	}
-	
+#ifdef CONFIG_LCD_BURNIN_CORRECTION
+		if(panel->ldu_correction_state != 0) {
+			if(is_max_br)
+				panel->acl_enable = ACL_OPR_OFF;
+			else
+				panel->acl_enable = ACL_OPR_8P;
+		}
+#endif
+
 	if (panel->state != PANEL_STATE_RESUMED) {
 		dsim_info("%s : panel is not active state..\n", __func__);
 		goto set_br_exit;

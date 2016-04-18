@@ -2754,8 +2754,6 @@ static void fts_shutdown(struct i2c_client *client)
 void fts_recovery_cx(struct fts_ts_info *info)
 {
 	unsigned char regAdd[4] = {0};
-	unsigned char buf[8] = {0};
-	unsigned char cnt = 100;
 
 	regAdd[0] = 0xB6;
 	regAdd[1] = 0x00;
@@ -2764,26 +2762,10 @@ void fts_recovery_cx(struct fts_ts_info *info)
 	fts_write_reg(info,&regAdd[0], 4);		// Loading FW to PRAM  without CRC Check
 	fts_delay(30);
 
+	fts_command(info,SLEEPOUT);
+	fts_delay(30);
 
-	fts_command(info,CX_TUNNING);
-	fts_delay(300);
-
-	fts_command(info,FTS_CMD_SAVE_CX_TUNING);
-	fts_delay(200);
-
-	do
-	{
-		int ret;
-		regAdd[0] = READ_ONE_EVENT;
-		ret = fts_read_reg(info, regAdd, 1, &buf[0], FTS_EVENT_SIZE);
-
-		fts_delay(10);
-		if(cnt-- == 0) break;
-	}while(buf[0] != 0x16 || buf[1] != 0x04);
-
-
-	fts_command(info, SLEEPOUT);
-	fts_delay(50);
+	fts_execute_autotune(info);
 
 	fts_command(info, SENSEON);
 	fts_delay(50);

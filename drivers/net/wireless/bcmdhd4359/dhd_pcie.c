@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_pcie.c 607218 2015-12-18 06:58:07Z $
+ * $Id: dhd_pcie.c 612549 2016-01-14 07:39:32Z $
  */
 
 
@@ -84,6 +84,7 @@ static int dhdpcie_checkdied(dhd_bus_t *bus, char *data, uint size);
 static int dhdpcie_bus_readconsole(dhd_bus_t *bus);
 #endif /* DHD_DEBUG */
 #if defined(DHD_FW_COREDUMP)
+struct dhd_bus *g_dhd_bus = NULL;
 static int dhdpcie_mem_dump(dhd_bus_t *bus);
 #endif /* DHD_FW_COREDUMP */
 
@@ -349,7 +350,9 @@ dhd_bus_t* dhdpcie_bus_attach(osl_t *osh,
 
 		DHD_TRACE(("%s: EXIT SUCCESS\n",
 			__FUNCTION__));
-
+#ifdef DHD_FW_COREDUMP
+		g_dhd_bus = bus;
+#endif
 		return bus;
 	} while (0);
 
@@ -453,6 +456,12 @@ dhdpcie_bus_intstatus(dhd_bus_t *bus)
 		if (intstatus == (uint32)-1) {
 			DHD_ERROR(("%s: !!!!!!Device Removed or dead chip.\n", __FUNCTION__));
 			intstatus = 0;
+#ifdef CUSTOMER_HW4_DEBUG
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
+			bus->dhd->hang_reason = HANG_REASON_PCIE_LINK_DOWN;
+			dhd_os_send_hang_message(bus->dhd);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) && OEM_ANDROID */
+#endif /* CUSTOMER_HW4_DEBUG */
 		}
 
 		intstatus &= bus->def_intmask;
@@ -1054,14 +1063,13 @@ bool dhd_bus_watchdog(dhd_pub_t *dhd)
 #if defined(SUPPORT_MULTIPLE_REVISION)
 static int concate_revision_bcm4358(dhd_bus_t *bus, char *fw_path, char *nv_path)
 {
-	uint32 chip_id, chip_ver;
+	uint32 chip_ver;
 #if defined(SUPPORT_MULTIPLE_CHIPS)
 	char chipver_tag[20] = "_4358";
 #else
 	char chipver_tag[10] = {0, };
 #endif /* SUPPORT_MULTIPLE_CHIPS */
 
-	chip_id = si_chipid(bus->sih);
 	chip_ver = bus->sih->chiprev;
 	if (chip_ver == 0) {
 		DHD_ERROR(("----- CHIP 4358 A0 -----\n"));
@@ -1108,14 +1116,13 @@ static int concate_revision_bcm4358(dhd_bus_t *bus, char *fw_path, char *nv_path
 
 static int concate_revision_bcm4359(dhd_bus_t *bus, char *fw_path, char *nv_path)
 {
-	uint32 chip_id, chip_ver;
+	uint32 chip_ver;
 	char chipver_tag[10] = {0, };
 #if defined(SUPPORT_MULTIPLE_MODULE_CIS) && defined(USE_CID_CHECK) && \
 	defined(SUPPORT_BCM4359_MIXED_MODULES)
 	int module_type = -1;
 #endif /* SUPPORT_MULTIPLE_MODULE_CIS && USE_CID_CHECK && SUPPORT_BCM4359_MIXED_MODULES */
 
-	chip_id = si_chipid(bus->sih);
 	chip_ver = bus->sih->chiprev;
 	if (chip_ver == 4) {
 		DHD_ERROR(("----- CHIP 4359 B0 -----\n"));
@@ -1417,6 +1424,8 @@ dhdpcie_download_code_file(struct dhd_bus *bus, char *pfw_path)
 	if ((uint32)(uintptr)memblock % DHD_SDALIGN)
 		memptr += (DHD_SDALIGN - ((uint32)(uintptr)memblock % DHD_SDALIGN));
 
+	DHD_INFO_HW4(("%s: dongle_ram_base: 0x%x ramsize: 0x%x tcm: %p\n",
+			__FUNCTION__, bus->dongle_ram_base, bus->ramsize, bus->tcm));
 	/* Download image with MEMBLOCK size */
 	while ((len = dhd_os_get_image_block((char*)memptr, MEMBLOCK, imgbuf))) {
 		if (len < 0) {
@@ -1461,6 +1470,10 @@ err:
 	return bcmerror;
 } /* dhdpcie_download_code_file */
 
+#ifdef CUSTOMER_HW4_DEBUG
+#define MIN_NVRAMVARS_SIZE 128
+#endif /* CUSTOMER_HW4_DEBUG */
+
 static int
 dhdpcie_download_nvram(struct dhd_bus *bus)
 {
@@ -1498,6 +1511,7 @@ dhdpcie_download_nvram(struct dhd_bus *bus)
 		nvram_uefi_exists = TRUE;
 	}
 
+	DHD_ERROR(("%s: dhd_get_download_buffer len %d\n", __FUNCTION__, len));
 
 	if (len > 0 && len <= MAX_NVRAMBUF_SIZE) {
 		bufp = (char *) memblock;
@@ -1523,6 +1537,15 @@ dhdpcie_download_nvram(struct dhd_bus *bus)
 		}
 #endif /* CACHE_FW_IMAGES */
 
+		DHD_ERROR(("%s: process_nvram_vars len %d\n", __FUNCTION__, len));
+#ifdef CUSTOMER_HW4_DEBUG
+		if (len < MIN_NVRAMVARS_SIZE) {
+			DHD_ERROR(("%s: invalid nvram size in process_nvram_vars \n",
+				__FUNCTION__));
+			bcmerror = BCME_ERROR;
+			goto err;
+		}
+#endif /* CUSTOMER_HW4_DEBUG */
 
 		if (len % 4) {
 			len += 4 - (len % 4);
@@ -2135,6 +2158,26 @@ dhd_bus_mem_dump(dhd_pub_t *dhdp)
 
 	return dhdpcie_mem_dump(bus);
 }
+
+int
+dhd_dongle_mem_dump()
+{
+	if (!g_dhd_bus) {
+		DHD_ERROR(("%s: Bus is NULL\n", __FUNCTION__));
+		return -ENODEV;
+	}
+
+	if (g_dhd_bus->suspended) {
+		DHD_ERROR(("%s: Bus is suspend so skip\n", __FUNCTION__));
+		return 0;
+	}
+
+	g_dhd_bus->dhd->memdump_enabled = DUMP_MEMFILE_BUGON;
+	g_dhd_bus->dhd->memdump_type = DUMP_TYPE_AP_ABNORMAL_ACCESS;
+
+	return dhdpcie_mem_dump(g_dhd_bus);
+}
+EXPORT_SYMBOL(dhd_dongle_mem_dump);
 #endif /* DHD_FW_COREDUMP */
 
 int
@@ -3195,7 +3238,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 				}
 #endif /* CONFIG_ARCH_MSM */
 				bus->is_linkdown = 0;
-
+				bus->pci_d3hot_done = 0;
 				bcmerror = dhdpcie_bus_enable_device(bus);
 				if (bcmerror) {
 					DHD_ERROR(("%s: host configuration restore failed: %d\n",
@@ -4271,6 +4314,8 @@ dhdpcie_bus_write_vars(dhd_bus_t *bus)
 		bzero(vbuffer, varsize);
 		bcopy(bus->vars, vbuffer, bus->varsz);
 		/* Write the vars list */
+		DHD_INFO_HW4(("%s: tcm: %p varaddr: 0x%x varsize: %d\n",
+			__FUNCTION__, bus->tcm, varaddr, varsize));
 		bcmerror = dhdpcie_bus_membytes(bus, TRUE, varaddr, vbuffer, varsize);
 
 		/* Implement read back and verify later */
@@ -4332,6 +4377,8 @@ dhdpcie_bus_write_vars(dhd_bus_t *bus)
 	DHD_INFO(("New varsize is %d, length token=0x%08x\n", varsize, varsizew));
 
 	/* Write the length token to the last word */
+	DHD_INFO_HW4(("%s: tcm: %p phys_size: 0x%x varsizew: %x\n",
+			__FUNCTION__, bus->tcm, phys_size, varsizew));
 	bcmerror = dhdpcie_bus_membytes(bus, TRUE, (phys_size - 4),
 		(uint8*)&varsizew, 4);
 
@@ -4762,7 +4809,12 @@ dhd_bus_dpc(struct dhd_bus *bus)
 	resched = dhdpcie_bus_process_mailbox_intr(bus, bus->intstatus);
 	if (!resched) {
 		bus->intstatus = 0;
-		dhdpcie_bus_intr_enable(bus);
+		if (!bus->pci_d3hot_done) {
+			dhdpcie_bus_intr_enable(bus);
+		} else {
+			DHD_ERROR(("%s: dhdpcie_bus_intr_enable skip in pci D3hot state \n",
+					__FUNCTION__));
+		}
 	}
 
 	DHD_GENERAL_LOCK(bus->dhd, flags);
@@ -4993,6 +5045,10 @@ dhdpcie_readshared(dhd_bus_t *bus)
 	dhd_timeout_t tmo;
 
 	shaddr = bus->dongle_ram_base + bus->ramsize - 4;
+
+	DHD_INFO_HW4(("%s: ram_base: 0x%x ramsize 0x%x tcm: %p shaddr: 0x%x nvram_csm: 0x%x\n",
+		__FUNCTION__, bus->dongle_ram_base, bus->ramsize,
+		bus->tcm, shaddr, bus->nvram_csm));
 	/* start a timer for 5 seconds */
 	dhd_timeout_start(&tmo, MAX_READ_TIMEOUT);
 
@@ -5294,6 +5350,7 @@ dhdpcie_init_shared_addr(dhd_bus_t *bus)
 #ifdef DHD_PCIE_RUNTIMEPM
 	dhdpcie_runtime_bus_wake(bus->dhd, TRUE, __builtin_return_address(0));
 #endif /* DHD_PCIE_RUNTIMEPM */
+	DHD_INFO_HW4(("%s: tcm: %p, addr: 0x%x val: 0x%x\n", __FUNCTION__, bus->tcm, addr, val));
 	dhdpcie_bus_membytes(bus, TRUE, addr, (uint8 *)&val, sizeof(val));
 }
 

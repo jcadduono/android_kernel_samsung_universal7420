@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -25,7 +25,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_linux.c 610549 2016-01-07 07:17:20Z $
+ * $Id: dhd_linux.c 616347 2016-02-01 06:03:25Z $
  */
 
 #include <typedefs.h>
@@ -180,7 +180,7 @@ static char *driver_target = "driver_target: "quote_str(BRCM_DRIVER_TARGET);
 extern bool ap_cfg_running;
 extern bool ap_fw_loaded;
 #endif
-extern void dhd_dump_eapol_4way_message(char *dump_data, bool direction);
+extern void dhd_dump_eapol_4way_message(char *ifname, char *dump_data, bool direction);
 
 #ifdef FIX_CPU_MIN_CLOCK
 #include <linux/pm_qos.h>
@@ -483,6 +483,9 @@ typedef struct dhd_info {
 	void *adapter;			/* adapter information, interrupt, fw path etc. */
 	char fw_path[PATH_MAX];		/* path to firmware image */
 	char nv_path[PATH_MAX];		/* path to nvram vars file */
+
+	/* serialize dhd iovars */
+	struct mutex dhd_iovar_mutex;
 
 	struct semaphore proto_sem;
 #ifdef PROP_TXSTATUS
@@ -1381,6 +1384,7 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 	dhd_info_t *dhdinfo = (dhd_info_t*)container_of(nfb, struct dhd_info, pm_notifier);
 
 	BCM_REFERENCE(dhdinfo);
+	BCM_REFERENCE(suspend);
 
 	switch (action) {
 	case PM_HIBERNATION_PREPARE:
@@ -1394,16 +1398,15 @@ static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, voi
 		break;
 	}
 
-#if defined(SUPPORT_P2P_GO_PS)
-#ifdef PROP_TXSTATUS
+#if defined(SUPPORT_P2P_GO_PS) && defined(PROP_TXSTATUS)
 	if (suspend) {
 		DHD_OS_WAKE_LOCK_WAIVE(&dhdinfo->pub);
 		dhd_wlfc_suspend(&dhdinfo->pub);
 		DHD_OS_WAKE_LOCK_RESTORE(&dhdinfo->pub);
-	} else
+	} else {
 		dhd_wlfc_resume(&dhdinfo->pub);
-#endif /* PROP_TXSTATUS */
-#endif /* defined(SUPPORT_P2P_GO_PS) */
+	}
+#endif /* defined(SUPPORT_P2P_GO_PS) && defined(PROP_TXSTATUS) */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (LINUX_VERSION_CODE <= \
 	KERNEL_VERSION(2, 6, 39))
@@ -2571,16 +2574,12 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				                 sizeof(power_mode), TRUE, 0);
 #endif /* SUPPORT_PM2_ONLY */
 
-#ifdef WL_VIRTUAL_APSTA
-				/* Softap shouldn't enable packet filter in STA+SoftAP mode */
-				if (!(dhd->op_mode & DHD_FLAG_HOSTAP_MODE))
-#endif /* WL_VIRTUAL_APSTA */
-				{
-					/* Enable packet filter,
-					 * only allow unicast packet to send up
-					 */
-					dhd_enable_packet_filter(1, dhd);
-				}
+#ifdef PKT_FILTER_SUPPORT
+				/* Enable packet filter,
+				 * only allow unicast packet to send up
+				 */
+				dhd_enable_packet_filter(1, dhd);
+#endif /* PKT_FILTER_SUPPORT */
 
 #ifdef PASS_ALL_MCAST_PKTS
 				allmulti = 0;
@@ -3527,16 +3526,18 @@ dhd_os_wlfc_unblock(dhd_pub_t *pub)
 
 #if defined(DHD_8021X_DUMP)
 void
-dhd_tx_dump(osl_t *osh, void *pkt)
+dhd_tx_dump(struct net_device *ndev, osl_t *osh, void *pkt)
 {
 	uint8 *dump_data;
 	uint16 protocol;
+	char *ifname;
 
 	dump_data = PKTDATA(osh, pkt);
 	protocol = (dump_data[12] << 8) | dump_data[13];
+	ifname = ndev ? ndev->name : "N/A";
 
 	if (protocol == ETHER_TYPE_802_1X) {
-		dhd_dump_eapol_4way_message(dump_data, TRUE);
+		dhd_dump_eapol_4way_message(ifname, dump_data, TRUE);
 	}
 }
 #endif /* DHD_8021X_DUMP */
@@ -3606,6 +3607,9 @@ __dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 #ifdef DHD_L2_FILTER
 	dhd_if_t *ifp = dhd_get_ifp(dhdp, ifidx);
 #endif
+#ifdef DHD_8021X_DUMP
+	struct net_device *ndev;
+#endif /* DHD_8021X_DUMP */
 
 	/* Reject if down */
 	if (!dhdp->up || (dhdp->busstate == DHD_BUS_DOWN)) {
@@ -3677,7 +3681,11 @@ __dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 			uint16 udp_port_pos;
 			uint8 *ptr8 = (uint8 *)&pktdata[ETHER_HDR_LEN];
 			uint8 ip_header_len = (*ptr8 & 0x0f)<<2;
+			struct net_device *net;
+			char *ifname;
 
+			net = dhd_idx2net(dhdp, ifidx);
+			ifname = net ? net->name : "N/A";
 			udp_port_pos = ETHER_HDR_LEN + ip_header_len;
 			source_port = (pktdata[udp_port_pos] << 8) | pktdata[udp_port_pos+1];
 			dest_port = (pktdata[udp_port_pos+2] << 8) | pktdata[udp_port_pos+3];
@@ -3685,15 +3693,15 @@ __dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 				dump_hex = (pktdata[udp_port_pos+249] << 8) |
 					pktdata[udp_port_pos+250];
 				if (dump_hex == 0x0101) {
-					DHD_ERROR(("DHCP - DISCOVER [TX]"));
+					DHD_ERROR(("DHCP[%s] - DISCOVER [TX]", ifname));
 				} else if (dump_hex == 0x0102) {
-					DHD_ERROR(("DHCP - OFFER [TX]"));
+					DHD_ERROR(("DHCP[%s] - OFFER [TX]", ifname));
 				} else if (dump_hex == 0x0103) {
-					DHD_ERROR(("DHCP - REQUEST [TX]"));
+					DHD_ERROR(("DHCP[%s] - REQUEST [TX]", ifname));
 				} else if (dump_hex == 0x0105) {
-					DHD_ERROR(("DHCP - ACK [TX]"));
+					DHD_ERROR(("DHCP[%s] - ACK [TX]", ifname));
 				} else {
-					DHD_ERROR(("DHCP - 0x%X [TX]", dump_hex));
+					DHD_ERROR(("DHCP[%s] - 0x%X [TX]", ifname, dump_hex));
 				}
 #ifdef DHD_LOSSLESS_ROAMING
 				if (dhdp->dequeue_prec_map != (uint8)ALLPRIO) {
@@ -3702,7 +3710,7 @@ __dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 #endif /* DHD_LOSSLESS_ROAMING */
 				DHD_ERROR(("\n"));
 			} else if (source_port == 0x0043 || dest_port == 0x0043) {
-				DHD_ERROR(("DHCP - BOOTP [RX]\n"));
+				DHD_ERROR(("DHCP[%s] - BOOTP [RX]\n", ifname));
 			}
 		}
 #endif /* DHD_DHCP_DUMP */
@@ -3760,7 +3768,8 @@ __dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 
 	/* Use bus module to send data frame */
 #if defined(DHD_8021X_DUMP)
-	dhd_tx_dump(dhdp->osh, pktbuf);
+	ndev = dhd_idx2net(dhdp, ifidx);
+	dhd_tx_dump(ndev, dhdp->osh, pktbuf);
 #endif
 #ifdef PROP_TXSTATUS
 	{
@@ -4133,10 +4142,11 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 	int tout_ctrl = 0;
 	void *skbhead = NULL;
 	void *skbprev = NULL;
-#if defined(DHD_RX_DUMP) || defined(DHD_8021X_DUMP)
+#if defined(DHD_RX_DUMP) || defined(DHD_8021X_DUMP) || defined(DHD_DHCP_DUMP)
 	char *dump_data;
 	uint16 protocol;
-#endif /* DHD_RX_DUMP || DHD_8021X_DUMP */
+	char *ifname;
+#endif /* DHD_RX_DUMP || DHD_8021X_DUMP || DHD_DHCP_DUMP */
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -4270,10 +4280,11 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 #if defined(DHD_RX_DUMP) || defined(DHD_8021X_DUMP) || defined(DHD_DHCP_DUMP)
 		dump_data = skb->data;
 		protocol = (dump_data[12] << 8) | dump_data[13];
+		ifname = skb->dev ? skb->dev->name : "N/A";
 #endif /* DHD_RX_DUMP || DHD_8021X_DUMP || DHD_DHCP_DUMP */
 #ifdef DHD_8021X_DUMP
 		if (protocol == ETHER_TYPE_802_1X) {
-			dhd_dump_eapol_4way_message(dump_data, FALSE);
+			dhd_dump_eapol_4way_message(ifname, dump_data, FALSE);
 		}
 #endif /* DHD_8021X_DUMP */
 #ifdef DHD_DHCP_DUMP
@@ -4292,23 +4303,23 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 				dump_hex = (dump_data[udp_port_pos+249] << 8) |
 					dump_data[udp_port_pos+250];
 				if (dump_hex == 0x0101) {
-					DHD_ERROR(("DHCP - DISCOVER [RX]\n"));
+					DHD_ERROR(("DHCP[%s] - DISCOVER [RX]\n", ifname));
 				} else if (dump_hex == 0x0102) {
-					DHD_ERROR(("DHCP - OFFER [RX]\n"));
+					DHD_ERROR(("DHCP[%s] - OFFER [RX]\n", ifname));
 				} else if (dump_hex == 0x0103) {
-					DHD_ERROR(("DHCP - REQUEST [RX]\n"));
+					DHD_ERROR(("DHCP[%s] - REQUEST [RX]\n", ifname));
 				} else if (dump_hex == 0x0105) {
-					DHD_ERROR(("DHCP - ACK [RX]\n"));
+					DHD_ERROR(("DHCP[%s] - ACK [RX]\n", ifname));
 				} else {
-					DHD_ERROR(("DHCP - 0x%X [RX]\n", dump_hex));
+					DHD_ERROR(("DHCP[%s] - 0x%X [RX]\n", ifname, dump_hex));
 				}
 			} else if (source_port == 0x0043 || dest_port == 0x0043) {
-				DHD_ERROR(("DHCP - BOOTP [RX]\n"));
+				DHD_ERROR(("DHCP[%s] - BOOTP [RX]\n", ifname));
 			}
 		}
 #endif /* DHD_DHCP_DUMP */
 #if defined(DHD_RX_DUMP)
-		DHD_ERROR(("RX DUMP - %s\n", _get_packet_type_str(protocol)));
+		DHD_ERROR(("RX DUMP[%s] - %s\n", ifname, _get_packet_type_str(protocol)));
 		if (protocol != ETHER_TYPE_BRCM) {
 			if (dump_data[0] == 0xFF) {
 				DHD_ERROR(("%s: BROADCAST\n", __FUNCTION__));
@@ -5043,6 +5054,26 @@ dhd_dpc_kill(dhd_pub_t *dhdp)
 #endif /* DHD_LB_RXC */
 #endif /* DHD_LB */
 }
+
+void
+dhd_dpc_tasklet_kill(dhd_pub_t *dhdp)
+{
+	dhd_info_t *dhd;
+
+	if (!dhdp) {
+		return;
+	}
+
+	dhd = dhdp->info;
+
+	if (!dhd) {
+		return;
+	}
+
+	if (dhd->thr_dpc_ctl.thr_pid < 0) {
+		tasklet_kill(&dhd->tasklet);
+	}
+}
 #endif /* BCMPCIE */
 
 static void
@@ -5346,7 +5377,6 @@ dhd_ethtool(dhd_info_t *dhd, void *uaddr)
 
 static bool dhd_check_hang(struct net_device *net, dhd_pub_t *dhdp, int error)
 {
-	dhd_info_t *dhd;
 
 	if (!dhdp) {
 		DHD_ERROR(("%s: dhdp is NULL\n", __FUNCTION__));
@@ -5356,9 +5386,8 @@ static bool dhd_check_hang(struct net_device *net, dhd_pub_t *dhdp, int error)
 	if (!dhdp->up)
 		return FALSE;
 
-	dhd = (dhd_info_t *)dhdp->info;
 #if !defined(BCMPCIE)
-	if (dhd->thr_dpc_ctl.thr_pid < 0) {
+	if (dhdp->info->thr_dpc_ctl.thr_pid < 0) {
 		DHD_ERROR(("%s : skipped due to negative pid - unloading?\n", __FUNCTION__));
 		return FALSE;
 	}
@@ -6373,7 +6402,7 @@ dhd_remove_if(dhd_pub_t *dhdpub, int ifidx, bool need_rtnl_lock)
 		dhd_if_del_sta_list(ifp);
 
 		MFREE(dhdinfo->pub.osh, ifp, sizeof(*ifp));
-
+		ifp = NULL;
 	}
 
 	return BCME_OK;
@@ -6885,6 +6914,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	net->netdev_ops = NULL;
 #endif
 
+	mutex_init(&dhd->dhd_iovar_mutex);
 	sema_init(&dhd->proto_sem, 1);
 
 #ifdef PROP_TXSTATUS
@@ -7294,9 +7324,10 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 	}
 
 	/* clear the path in module parameter */
-	firmware_path[0] = '\0';
-	nvram_path[0] = '\0';
-
+	if (dhd_download_fw_on_driverload) {
+		firmware_path[0] = '\0';
+		nvram_path[0] = '\0';
+	}
 #ifndef BCMEMBEDIMAGE
 	/* fw_path and nv_path are not mandatory for BCMEMBEDIMAGE */
 	if (dhdinfo->fw_path[0] == '\0') {
@@ -9892,6 +9923,26 @@ dhd_os_proto_unblock(dhd_pub_t *pub)
 	return 0;
 }
 
+void
+dhd_os_dhdiovar_lock(dhd_pub_t *pub)
+{
+	dhd_info_t * dhd = (dhd_info_t *)(pub->info);
+
+	if (dhd) {
+		mutex_lock(&dhd->dhd_iovar_mutex);
+	}
+}
+
+void
+dhd_os_dhdiovar_unlock(dhd_pub_t *pub)
+{
+	dhd_info_t * dhd = (dhd_info_t *)(pub->info);
+
+	if (dhd) {
+		mutex_unlock(&dhd->dhd_iovar_mutex);
+	}
+}
+
 unsigned int
 dhd_os_get_ioctl_resp_timeout(void)
 {
@@ -10149,11 +10200,18 @@ dhd_os_get_image_block(char *buf, int len, void *image)
 {
 	struct file *fp = (struct file *)image;
 	int rdlen;
+	int size;
 
 	if (!image)
 		return 0;
 
-	rdlen = kernel_read(fp, fp->f_pos, buf, len);
+	size = i_size_read(file_inode(fp));
+	rdlen = kernel_read(fp, fp->f_pos, buf, MIN(len, size));
+
+	if (len >= size && size != rdlen) {
+		return -EIO;
+	}
+
 	if (rdlen > 0)
 		fp->f_pos += rdlen;
 
@@ -11451,6 +11509,12 @@ dhd_convert_memdump_type_to_str(uint32 type, char *buf)
 			break;
 		case DUMP_TYPE_BY_LIVELOCK:
 			type_str = "BY_LIVELOCK";
+			break;
+		case DUMP_TYPE_AP_LINKUP_FAILURE:
+			type_str = "BY_AP_LINK_FAILURE";
+			break;
+		case DUMP_TYPE_AP_ABNORMAL_ACCESS:
+			type_str = "INVALID_ACCESS";
 			break;
 		default:
 			type_str = "Unknown_type";

@@ -1,7 +1,7 @@
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: linux_osl.c 602478 2015-11-26 04:46:12Z $
+ * $Id: linux_osl.c 610535 2016-01-07 06:45:24Z $
  */
 
 #define LINUX_PORT
@@ -1482,10 +1482,9 @@ dmaaddr_t BCMFASTPATH
 osl_dma_map(osl_t *osh, void *va, uint size, int direction, void *p, hnddma_seg_map_t *dmah)
 {
 	int dir;
-#ifdef BCMDMA64OSL
-	dmaaddr_t ret;
+	dmaaddr_t ret_addr;
 	dma_addr_t  map_addr;
-#endif /* BCMDMA64OSL */
+	int ret;
 
 	ASSERT((osh && (osh->magic == OS_HANDLE_MAGIC)));
 	dir = (direction == DMA_TX)? PCI_DMA_TODEVICE: PCI_DMA_FROMDEVICE;
@@ -1493,14 +1492,24 @@ osl_dma_map(osl_t *osh, void *va, uint size, int direction, void *p, hnddma_seg_
 
 
 
-#ifdef BCMDMA64OSL
 	map_addr = pci_map_single(osh->pdev, va, size, dir);
-	PHYSADDRLOSET(ret, map_addr & 0xffffffff);
-	PHYSADDRHISET(ret, (map_addr >> 32) & 0xffffffff);
-	return ret;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
+	ret = pci_dma_mapping_error(osh->pdev, map_addr);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 5))
+	ret = pci_dma_mapping_error(map_addr);
 #else
-	return (pci_map_single(osh->pdev, va, size, dir));
-#endif /* BCMDMA64OSL */
+	ret = 0;
+#endif
+	if (ret) {
+		printk("%s: Failed to map memory\n", __FUNCTION__);
+		PHYSADDRLOSET(ret_addr, 0);
+		PHYSADDRHISET(ret_addr, 0);
+	} else {
+		PHYSADDRLOSET(ret_addr, map_addr & 0xffffffff);
+		PHYSADDRHISET(ret_addr, (map_addr >> 32) & 0xffffffff);
+	}
+
+	return ret_addr;
 }
 
 void BCMFASTPATH

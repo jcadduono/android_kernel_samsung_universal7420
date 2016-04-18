@@ -26,7 +26,7 @@
 #elif defined (CONFIG_SENSORS_SSP_MARINELTE)
 #define SSP_FIRMWARE_REVISION_BCM	15081200
 #else // ZERO
-#define SSP_FIRMWARE_REVISION_BCM	16010800
+#define SSP_FIRMWARE_REVISION_BCM	16021800
 #endif
 unsigned int get_module_rev(struct ssp_data *data)
 {

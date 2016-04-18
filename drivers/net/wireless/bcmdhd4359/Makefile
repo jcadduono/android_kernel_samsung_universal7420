@@ -1,5 +1,5 @@
 #
-# Copyright (C) 1999-2015, Broadcom Corporation
+# Copyright (C) 1999-2016, Broadcom Corporation
 # 
 #      Unless you and Broadcom execute a separate written software license
 # agreement governing use of this software, this software is licensed to you
@@ -170,7 +170,6 @@ DHDCFLAGS += -DNUM_SCB_MAX_PROBE=3
 DHDCFLAGS += -DDHD_USE_ATOMIC_PKTGET
 DHDCFLAGS += -DTDLS_MSG_ONLY_WFD
 DHDCFLAGS += -DSKIP_WLFC_ON_CONCURRENT
-DHDCFLAGS += -DENABLE_ARP_SNOOP_MODE
 DHDCFLAGS += -DUNSET_FW_ROAM_WIPHY_FLAG
 DHDCFLAGS += -DENABLE_TDLS_AUTO_MODE
 DHDCFLAGS += -DP2P_SKIP_DFS
@@ -179,6 +178,7 @@ DHDCFLAGS += -DEXPLICIT_DISCIF_CLEANUP
 DHDCFLAGS += -DKEEP_WIFION_OPTION
 DHDCFLAGS += -DP2P_LISTEN_OFFLOADING
 DHDCFLAGS += -DCUSTOM_EVENT_PM_WAKE=20
+DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=30000
 
 # For special PNO Event keep wake lock for 10sec
 DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
@@ -357,6 +357,9 @@ ifeq ($(filter y,$(CONFIG_ARCH_MSM8996) $(CONFIG_SOC_EXYNOS8890)),y)
   DHDCFLAGS += -DDONGLE_ENABLE_ISOLATION
  # Disable SOFTAP_SEND_HANGEVT
   DHDCFLAGS := $(filter-out -DSOFTAP_SEND_HANGEVT,$(DHDCFLAGS))
+ # CLM
+  DHDCFLAGS += -DDHD_SUPPORT_GB_999
+  DHDCFLAGS += -DCUSTOMER_SCAN_TIMEOUT_SETTING
 endif
 
  # RSDB mode from file config
@@ -836,6 +839,8 @@ DHDCFLAGS += -include "dhd_sec_feature.h"
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG
 EXTRA_CFLAGS += -DSRCBASE=\"$(src)\"
 EXTRA_CFLAGS += -I$(src)/include/ -I$(src)/
+EXTRA_CFLAGS += $(call cc-option, -Wunused-but-set-variable)
+EXTRA_CFLAGS += $(call cc-option, -Wmaybe-uninitialized)
 KBUILD_CFLAGS += -I$(LINUXDIR)/include -I$(shell pwd)
 
 DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o dhd_custom_sec.o \

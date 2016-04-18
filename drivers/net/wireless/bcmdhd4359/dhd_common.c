@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_common.c 610549 2016-01-07 07:17:20Z $
+ * $Id: dhd_common.c 611507 2016-01-11 11:14:39Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -1333,6 +1333,7 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void * buf, uint buflen)
 		return BCME_BADARG;
 	}
 
+	dhd_os_dhdiovar_lock(dhd_pub);
 	switch (ioc->cmd) {
 		case DHD_GET_MAGIC:
 			if (buflen < sizeof(int))
@@ -1350,7 +1351,6 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void * buf, uint buflen)
 
 		case DHD_GET_VAR:
 		case DHD_SET_VAR:
-			if (dhd_os_proto_block(dhd_pub))
 			{
 				char *arg;
 				uint arglen;
@@ -1366,7 +1366,7 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void * buf, uint buflen)
 						DHD_ERROR(("%s: returning as busstate=%d\n",
 								__FUNCTION__, dhd_pub->busstate));
 						DHD_GENERAL_UNLOCK(dhd_pub, flags);
-						dhd_os_proto_unblock(dhd_pub);
+						dhd_os_dhdiovar_unlock(dhd_pub);
 						return -ENODEV;
 					}
 				}
@@ -1375,6 +1375,7 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void * buf, uint buflen)
 #ifdef DHD_PCIE_RUNTIMEPM
 				dhdpcie_runtime_bus_wake(dhd_pub, TRUE, dhd_ioctl);
 #endif /* DHD_PCIE_RUNTIMEPM */
+
 				/* scan past the name to any arguments */
 				for (arg = buf, arglen = buflen; *arg && arglen; arg++, arglen--)
 					;
@@ -1419,12 +1420,13 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void * buf, uint buflen)
 					bcmerror = dhd_bus_iovar_op(dhd_pub, buf,
 							NULL, 0, arg, arglen, IOV_SET);
 				}
-				goto unlock_exit;
 			}
+			goto unlock_exit;
 
 		default:
 			bcmerror = BCME_UNSUPPORTED;
 	}
+	dhd_os_dhdiovar_unlock(dhd_pub);
 	return bcmerror;
 
 unlock_exit:
@@ -1432,7 +1434,7 @@ unlock_exit:
 	dhd_pub->dhd_bus_busy_state &= ~DHD_BUS_BUSY_IN_DHD_IOVAR;
 	dhd_os_busbusy_wake(dhd_pub);
 	DHD_GENERAL_UNLOCK(dhd_pub, flags);
-	dhd_os_proto_unblock(dhd_pub);
+	dhd_os_dhdiovar_unlock(dhd_pub);
 	return bcmerror;
 }
 
@@ -3615,7 +3617,7 @@ void dhd_free_download_buffer(dhd_pub_t	*dhd, void *buffer, int length)
 }
 /* Parse EAPOL 4 way handshake messages */
 void
-dhd_dump_eapol_4way_message(char *dump_data, bool direction)
+dhd_dump_eapol_4way_message(char *ifname, char *dump_data, bool direction)
 {
 	unsigned char type;
 	int pair, ack, mic, kerr, req, sec, install;
@@ -3631,25 +3633,25 @@ dhd_dump_eapol_4way_message(char *dump_data, bool direction)
 		sec = 0  != (us_tmp & 0x200);
 		install  = 0 != (us_tmp & 0x40);
 		if (!sec && !mic && ack && !install && pair && !kerr && !req) {
-			DHD_ERROR(("ETHER_TYPE_802_1X [%s] : M1 of 4way\n",
-				direction ? "TX" : "RX"));
+			DHD_ERROR(("ETHER_TYPE_802_1X[%s] [%s] : M1 of 4way\n",
+				ifname, direction ? "TX" : "RX"));
 		} else if (pair && !install && !ack && mic && !sec && !kerr && !req) {
-			DHD_ERROR(("ETHER_TYPE_802_1X [%s] : M2 of 4way\n",
-				direction ? "TX" : "RX"));
+			DHD_ERROR(("ETHER_TYPE_802_1X[%s] [%s] : M2 of 4way\n",
+				ifname, direction ? "TX" : "RX"));
 		} else if (pair && ack && mic && sec && !kerr && !req) {
-			DHD_ERROR(("ETHER_TYPE_802_1X [%s] : M3 of 4way\n",
-				direction ? "TX" : "RX"));
+			DHD_ERROR(("ETHER_TYPE_802_1X[%s] [%s] : M3 of 4way\n",
+				ifname, direction ? "TX" : "RX"));
 		} else if (pair && !install && !ack && mic && sec && !req && !kerr) {
-			DHD_ERROR(("ETHER_TYPE_802_1X [%s] : M4 of 4way\n",
-				direction ? "TX" : "RX"));
+			DHD_ERROR(("ETHER_TYPE_802_1X[%s] [%s] : M4 of 4way\n",
+				ifname, direction ? "TX" : "RX"));
 		} else {
-			DHD_ERROR(("ETHER_TYPE_802_1X [%s]: ver %d, type %d, replay %d\n",
-				direction ? "TX" : "RX",
+			DHD_ERROR(("ETHER_TYPE_802_1X[%s] [%s]: ver %d, type %d, replay %d\n",
+				ifname, direction ? "TX" : "RX",
 				dump_data[14], dump_data[15], dump_data[30]));
 		}
 	} else {
-		DHD_ERROR(("ETHER_TYPE_802_1X [%s]: ver %d, type %d, replay %d\n",
-				direction ? "TX" : "RX",
-				dump_data[14], dump_data[15], dump_data[30]));
+		DHD_ERROR(("ETHER_TYPE_802_1X[%s] [%s]: ver %d, type %d, replay %d\n",
+			ifname, direction ? "TX" : "RX",
+			dump_data[14], dump_data[15], dump_data[30]));
 	}
 }

@@ -450,6 +450,18 @@ static int ipc_bridge_suspend(struct usb_interface *intf, pm_message_t message)
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->rx_state != RX_IDLE) {
 		dev->susp_fail_cnt++;
+		if (dev->rx_state == RX_BUSY) {
+			int r;
+			r = usb_submit_urb(dev->inturb, GFP_ATOMIC);
+			if (r < 0 && r != -EPERM)
+				dev_err(&dev->intf->dev, "%s: int urb submit err %d\n",
+						__func__, r);
+
+			if (r)
+				dev->rx_state = RX_IDLE;
+			else
+				dev->rx_state = RX_WAIT;
+		}
 		ret = -EBUSY;
 		dev_err(&dev->intf->dev, "failed after usb_kill_urb\n");
 		goto done;

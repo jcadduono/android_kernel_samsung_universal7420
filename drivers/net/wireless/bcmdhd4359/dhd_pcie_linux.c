@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_pcie_linux.c 606676 2015-12-16 09:49:30Z $
+ * $Id: dhd_pcie_linux.c 610510 2016-01-07 05:46:48Z $
  */
 
 
@@ -292,6 +292,8 @@ static int dhdpcie_set_suspend_resume(struct pci_dev *pdev, bool state)
 	return ret;
 }
 
+extern void dhd_dpc_tasklet_kill(dhd_pub_t *dhdp);
+
 static int dhdpcie_suspend_dev(struct pci_dev *dev)
 {
 	int ret;
@@ -305,6 +307,11 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 	}
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	DHD_TRACE_HW4(("%s: Enter\n", __FUNCTION__));
+	disable_irq(dev->irq);
+	dhd_dpc_tasklet_kill(bus->dhd);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+	bus->pci_d3hot_done = 1;
+#endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	pci_save_state(dev);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	pch->state = pci_store_saved_state(dev);
@@ -318,7 +325,6 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 		DHD_ERROR(("%s: pci_set_power_state error %d\n",
 			__FUNCTION__, ret));
 	}
-	disable_irq(dev->irq);
 	return ret;
 }
 
@@ -327,9 +333,13 @@ static int dhdpcie_resume_dev(struct pci_dev *dev)
 	int err = 0;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	dhdpcie_info_t *pch = pci_get_drvdata(dev);
+	dhd_bus_t *bus = pch->bus;
 	pci_load_and_free_saved_state(dev, &pch->state);
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	DHD_TRACE_HW4(("%s: Enter\n", __FUNCTION__));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+	bus->pci_d3hot_done = 0;
+#endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	pci_restore_state(dev);
 	err = pci_enable_device(dev);
 	if (err) {
@@ -410,10 +420,12 @@ int dhdpcie_pci_suspend_resume(dhd_bus_t *bus, bool state)
 #ifndef	BCMPCIE_OOB_HOST_WAKE
 		dhdpcie_pme_active(bus->osh, state);
 #endif /* !BCMPCIE_OOB_HOST_WAKE */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 		if (bus->is_linkdown) {
 			bus->dhd->hang_reason = HANG_REASON_PCIE_RC_LINK_UP_FAIL;
 			dhd_os_send_hang_message(bus->dhd);
 		}
+#endif 
 	}
 	return rc;
 }
@@ -809,7 +821,7 @@ int dhdpcie_init(struct pci_dev *pdev)
 
 		dhdpcie_info->bus = bus;
 		bus->is_linkdown = 0;
-
+		bus->pci_d3hot_done = 0;
 #ifdef DONGLE_ENABLE_ISOLATION
 		bus->dhd->dongle_isolation = TRUE;
 #endif /* DONGLE_ENABLE_ISOLATION */
@@ -1537,6 +1549,12 @@ bool dhdpcie_runtime_bus_wake(dhd_pub_t *dhdp, bool wait, void* func_addr)
 {
 	dhd_bus_t *bus = dhdp->bus;
 	return dhd_runtime_bus_wake(bus, wait, func_addr);
+}
+
+void dhdpcie_block_runtime_pm(dhd_pub_t *dhdp)
+{
+	dhd_bus_t *bus = dhdp->bus;
+	bus->idletime = 0;
 }
 
 bool dhdpcie_is_resume_done(dhd_pub_t *dhdp)

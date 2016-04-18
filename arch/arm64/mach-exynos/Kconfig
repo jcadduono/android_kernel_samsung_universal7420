@@ -44,30 +44,6 @@ config SOC_EXYNOS7420_EVT_0
 	help
 	  Enable EXYNOS7420 EVT0 SoC support
 
-config SOC_EXYNOS7580
-	bool "SAMSUNG EXYNOS7580"
-	depends on ARCH_EXYNOS7
-	select SAMSUNG_DMADEV
-	select CAL_SYS_PWRDOWN
-	select ARCH_HAS_OPP
-	select ARCH_HAS_BANDGAP
-	help
-	  Enable EXYNOS7580 SoC support
-
-config SOC_EXYNOS5433
-	bool "SAMSUNG EXYNOS5433"
-	default n
-	depends on ARCH_EXYNOS5
-	select PM_GENERIC_DOMAINS if PM
-	select S5P_PM if PM
-	select S5P_SLEEP if SUSPEND
-	select SAMSUNG_DMADEV
-	select EXYNOS_HSI2C_RESET_DURING_DSTOP if CPU_IDLE
-	select EXYNOS_SPI_RESET_DURING_DSTOP if CPU_IDLE
-	select CAL_SYS_PWRDOWN
-	help
-	  Enable EXYNOS5433 SoC support
-
 config EXYNOS_ASV
 	bool "ENABLE EXYNOS ASV"
 	default n
@@ -109,7 +85,6 @@ config EXYNOS_ATAGS
 
 config EXYNOS5_DYNAMIC_CPU_HOTPLUG
 	bool "Dynamic CPU Hotplug support"
-	depends on !SOC_EXYNOS7580
 	depends on CPU_FREQ
 	help
 		Enable Dynamic CPU Hotplug
@@ -123,13 +98,6 @@ config EXYNOS5_DYNAMIC_CPU_HOTPLUG_SLEEP_PREPARE
           during sleep/wakeup sequence.
           This config set the number of activate cores.
           defaut value is "4" to activate all cores in cluster0.
-
-config EXYNOS7580_DYNAMIC_CLUSTER_HOTPLUG
-	bool "Dynamic CLUSTER Hotplug support"
-	depends on SOC_EXYNOS7580
-	depends on CPU_FREQ
-	help
-		Enable Dynamic CLUSTER Hotplug
 
 config EXYNOS_CONTENT_PATH_PROTECTION
 	bool "Exynos Content Path Protection"
@@ -241,21 +209,6 @@ endif
 
 comment "Flattened Device Tree based board for EXYNOS SoCs"
 
-config MACH_UNIVERSAL5433
-	bool "SAMSUNG UNIVERSAL5433 Machine using device tree"
-	default y
-	depends on ARCH_EXYNOS5 && SOC_EXYNOS5433
-	select ARM_AMBA
-	select CLKSRC_OF
-	select PINCTRL
-	select PINCTRL_EXYNOS
-	select USE_OF
-	select MIGHT_HAVE_PCI
-	select PCI_DOMAINS if PCI
-	help
-	  Machine support for Samsung EXYNOS5433 machine with device tree enabled.
-	  Select this if a fdt blob is available for the EXYNOS5433 SoC based board.
-
 config MACH_ESPRESSO7420
 	bool "SAMSUNG ESPRESSO7420 Machine using device tree"
 	select ARM_AMBA
@@ -284,26 +237,6 @@ config MACH_UNIVERSAL7420
 	  Machine support for Samsung EXYNOS7420 machine with device tree enabled.
 	  Select this if a fdt blob is available for the EXYNOS7420 SoC based board.
 
-config MACH_SMDK7580
-	bool "SAMSUNG SMDK7580 Machine using device tree"
-	select ARM_AMBA
-	select USE_OF
-	select PINCTRL
-	select PINCTRL_EXYNOS
-	help
-	  Machine support for Samsung EXYNOS7580 machine with device tree enabled.
-	  Select this if a fdt blob is available for the EXYNOS7580 SoC based board.
-
-config MACH_UNIVERSAL7580
-	bool "SAMSUNG UNIVERSAL7580 Machine using device tree"
-	select ARM_AMBA
-	select USE_OF
-	select PINCTRL
-	select PINCTRL_EXYNOS
-	select PM_OPP
-	help
-	  Machine support for Samsung EXYNOS7580 machine with device tree enabled.
-	  Select this if a fdt blob is available for the EXYNOS7580 SoC based board.
 endmenu
 
 # Reset IPs during LPA/DSTOP

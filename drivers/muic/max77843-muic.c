@@ -2670,11 +2670,7 @@ static void max77843_muic_detect_dev(struct max77843_muic_data *muic_data, int i
 
 		if (!(muic_check_support_dev(muic_data, tmp_vps->attached_dev))) {
 			if (vbvolt == VB_HIGH) {
-#ifdef CONFIG_MUIC_MAX77843_RUSTPROOF_CHARGING
-				new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
-#else
 				new_dev = ATTACHED_DEV_UNSUPPORTED_ID_VB_MUIC;
-#endif
 				intr = MUIC_INTR_ATTACH;
 				pr_info("%s:%s unsupported ID + VB\n", MUIC_DEV_NAME, __func__);
 			}

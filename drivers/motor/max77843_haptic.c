@@ -23,6 +23,7 @@
 #include <linux/mfd/max77843-private.h>
 #include <plat/devs.h>
 #include <linux/sec_sysfs.h>
+#include <linux/kthread.h>
 
 #define TEST_MODE_TIME 10000
 #define MAX_INTENSITY		10000
@@ -46,11 +47,10 @@ struct max77843_haptic_data {
 	struct regulator *regulator;
 	struct timed_output_dev tout_dev;
 	struct hrtimer timer;
-	struct workqueue_struct *workqueue;
-	struct work_struct work;
+	struct kthread_worker kworker;
+	struct kthread_work kwork;
 	spinlock_t lock;
 	bool running;
-	bool resumed;
 	u32 intensity;
 	u32 timeout;
 	int duty;
@@ -58,21 +58,51 @@ struct max77843_haptic_data {
 
 struct max77843_haptic_data *g_hap_data;
 
-static void max77843_haptic_i2c(struct max77843_haptic_data *hap_data, bool en)
+static int motor_vdd_en(struct max77843_haptic_data *hap_data, bool en)
+{
+	int ret = 0;
+
+	if (en)
+		ret = regulator_enable(hap_data->regulator);
+	else
+		ret = regulator_disable(hap_data->regulator);
+
+	if (ret < 0)
+		pr_err("failed to %sable regulator %d\n",
+			en ? "en" : "dis", ret);
+
+	return ret;
+}
+
+static void max77843_haptic_init_reg(struct max77843_haptic_data *hap_data)
 {
 	int ret;
 	u8 lscnfg_val = 0x00;
 
-	pr_info("[VIB] %s %d\n", __func__, en);
+	motor_vdd_en(hap_data, true);
 
-	if (en) {
-		lscnfg_val = MAX77843_REG_MAINCTRL1_BIASEN;
-	}
-
+	lscnfg_val = MAX77843_REG_MAINCTRL1_BIASEN;
 	ret = max77843_update_reg(hap_data->i2c, MAX77843_PMIC_REG_MAINCTRL1,
 			lscnfg_val, MAX77843_REG_MAINCTRL1_BIASEN);
 	if (ret)
 		pr_err("[VIB] i2c REG_BIASEN update error %d\n", ret);
+
+	ret = max77843_update_reg(hap_data->i2c,
+		MAX77843_PMIC_REG_MCONFIG, 0x0, MOTOR_EN);
+	if (ret)
+		pr_err("i2c MOTOR_EN update error %d\n", ret);
+
+	ret = max77843_update_reg(hap_data->i2c, MAX77843_PMIC_REG_MCONFIG,
+			0xff, MOTOR_LRA);
+	if (ret)
+		pr_err("[VIB] i2c MOTOR_LPA update error %d\n", ret);
+}
+
+static void max77843_haptic_i2c(struct max77843_haptic_data *hap_data, bool en)
+{
+	int ret;
+
+	pr_info("[VIB] %s %d\n", __func__, en);
 
 	if (en) {
 		ret = max77843_update_reg(hap_data->i2c,
@@ -81,13 +111,6 @@ static void max77843_haptic_i2c(struct max77843_haptic_data *hap_data, bool en)
 		ret = max77843_update_reg(hap_data->i2c,
 				MAX77843_PMIC_REG_MCONFIG, 0x0, MOTOR_EN);
 	}
-	if (ret)
-		pr_err("[VIB] i2c MOTOR_EN update error %d\n", ret);
-
-	ret = max77843_update_reg(hap_data->i2c, MAX77843_PMIC_REG_MCONFIG,
-			0xff, MOTOR_LRA);
-	if (ret)
-		pr_err("[VIB] i2c MOTOR_LPA update error %d\n", ret);
 }
 
 static int haptic_get_time(struct timed_output_dev *tout_dev)
@@ -111,20 +134,33 @@ static void haptic_enable(struct timed_output_dev *tout_dev, int value)
 
 	struct hrtimer *timer = &hap_data->timer;
 	unsigned long flags;
+	int ret;
 
-
-	cancel_work_sync(&hap_data->work);
+	flush_kthread_worker(&hap_data->kworker);
 	hrtimer_cancel(timer);
 	hap_data->timeout = value;
-	queue_work(hap_data->workqueue, &hap_data->work);
-	spin_lock_irqsave(&hap_data->lock, flags);
-	if (value > 0 && value != TEST_MODE_TIME) {
+
+	if (value > 0) {
+		if (!hap_data->running) {
+			pwm_config(hap_data->pwm, hap_data->duty,
+				hap_data->pdata->period);
+			pwm_enable(hap_data->pwm);
+
+			ret = regulator_enable(hap_data->regulator);
+			pr_info("regulator_enable returns %d\n", ret);
+
+			max77843_haptic_i2c(hap_data, true);
+			hap_data->running = true;
+		}
+		spin_lock_irqsave(&hap_data->lock, flags);
 		pr_debug("[VIB] %s value %d\n", __func__, value);
 		value = min(value, (int)hap_data->pdata->max_timeout);
 		hrtimer_start(timer, ns_to_ktime((u64)value * NSEC_PER_MSEC),
-				HRTIMER_MODE_REL);
+			HRTIMER_MODE_REL);
+		spin_unlock_irqrestore(&hap_data->lock, flags);
 	}
-	spin_unlock_irqrestore(&hap_data->lock, flags);
+	else
+		queue_kthread_work(&hap_data->kworker, &hap_data->kwork);
 }
 
 static enum hrtimer_restart haptic_timer_func(struct hrtimer *timer)
@@ -133,7 +169,7 @@ static enum hrtimer_restart haptic_timer_func(struct hrtimer *timer)
 		= container_of(timer, struct max77843_haptic_data, timer);
 
 	hap_data->timeout = 0;
-	queue_work(hap_data->workqueue, &hap_data->work);
+	queue_kthread_work(&hap_data->kworker, &hap_data->kwork);
 	return HRTIMER_NORESTART;
 }
 
@@ -179,43 +215,18 @@ err_clk_get:
 	return -EINVAL;
 }
 
-static void haptic_work(struct work_struct *work)
+static void haptic_work(struct kthread_work *work)
 {
 	struct max77843_haptic_data *hap_data
-		= container_of(work, struct max77843_haptic_data, work);
+		= container_of(work, struct max77843_haptic_data, kwork);
 
 	pr_info("[VIB] %s\n", __func__);
-	if (hap_data->timeout > 0 && hap_data->intensity) {
-		if (hap_data->running)
-			return;
 
-		max77843_haptic_i2c(hap_data, true);
-
-		pwm_config(hap_data->pwm, hap_data->duty,
-				hap_data->pdata->period);
-		pwm_enable(hap_data->pwm);
-		if (hap_data->pdata->motor_en)
-			hap_data->pdata->motor_en(true);
-		else {
-			int ret;
-			ret = regulator_enable(hap_data->regulator);
-			pr_info("regulator_enable returns %d\n", ret);
-		}
-		hap_data->running = true;
-	} else {
-		if (!hap_data->running)
-			return;
-		if (hap_data->pdata->motor_en)
-			hap_data->pdata->motor_en(false);
-		else
-			regulator_disable(hap_data->regulator);
-		pwm_disable(hap_data->pwm);
-
+	if (hap_data->running) {
 		max77843_haptic_i2c(hap_data, false);
-
+		pwm_disable(hap_data->pwm);
 		hap_data->running = false;
 	}
-	return;
 }
 
 #if defined(CONFIG_OF)
@@ -417,6 +428,7 @@ static int max77843_haptic_probe(struct platform_device *pdev)
 	struct max77843_haptic_platform_data *pdata
 		= max77843_pdata->haptic_data;
 	struct max77843_haptic_data *hap_data;
+	struct task_struct *kworker_task;
 
 	pr_info("[VIB] ++ %s\n", __func__);
 
@@ -447,13 +459,16 @@ static int max77843_haptic_probe(struct platform_device *pdev)
 	hap_data->i2c = max77843->i2c;
 	hap_data->pdata = pdata;
 
-	hap_data->workqueue = create_singlethread_workqueue("hap_work");
-	if (NULL == hap_data->workqueue) {
-		error = -EFAULT;
-		pr_err("[VIB] Failed to create workqueue, err num: %d\n", error);
-		goto err_work_queue;
+	init_kthread_worker(&hap_data->kworker);
+	kworker_task = kthread_run(kthread_worker_fn,
+		   &hap_data->kworker, "max77843_haptic");
+	if (IS_ERR(kworker_task)) {
+		pr_err("Failed to create message pump task\n");
+		error = -ENOMEM;
+		goto err_kthread;
 	}
-	INIT_WORK(&(hap_data->work), haptic_work);
+	init_kthread_work(&hap_data->kwork, haptic_work);
+
 	spin_lock_init(&(hap_data->lock));
 
 	hap_data->pwm = pwm_request(hap_data->pdata->pwm_id, "vibrator");
@@ -477,6 +492,9 @@ static int max77843_haptic_probe(struct platform_device *pdev)
 		pr_err("[VIB] Failed to get vmoter regulator, err num: %d\n", error);
 		goto err_regulator_get;
 	}
+
+	max77843_haptic_init_reg(hap_data);
+
 	/* hrtimer init */
 	hrtimer_init(&hap_data->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hap_data->timer.function = haptic_timer_func;
@@ -485,8 +503,6 @@ static int max77843_haptic_probe(struct platform_device *pdev)
 	hap_data->tout_dev.name = "vibrator";
 	hap_data->tout_dev.get_time = haptic_get_time;
 	hap_data->tout_dev.enable = haptic_enable;
-
-	hap_data->resumed = false;
 
 	motor_dev = sec_device_create(hap_data, "motor");
 	if (IS_ERR(motor_dev)) {
@@ -532,8 +548,7 @@ exit_sec_devices:
 err_regulator_get:
 	pwm_free(hap_data->pwm);
 err_pwm_request:
-	destroy_workqueue(hap_data->workqueue);
-err_work_queue:
+err_kthread:
 	kfree(hap_data);
 	kfree(pdata);
 	g_hap_data = NULL;
@@ -551,7 +566,6 @@ static int __devexit max77843_haptic_remove(struct platform_device *pdev)
 	sec_device_destroy(motor_dev->devt);
 	regulator_put(data->regulator);
 	pwm_free(data->pwm);
-	destroy_workqueue(data->workqueue);
 	max77843_haptic_i2c(data, false);
 	kfree(data);
 	g_hap_data = NULL;
@@ -564,7 +578,7 @@ static int max77843_haptic_suspend(struct platform_device *pdev,
 {
 	struct max77843_haptic_data *data = platform_get_drvdata(pdev);
 	pr_info("[VIB] %s\n", __func__);
-	cancel_work_sync(&g_hap_data->work);
+	flush_kthread_worker(&data->kworker);
 	hrtimer_cancel(&g_hap_data->timer);
 	max77843_haptic_i2c(data, false);
 	return 0;
@@ -572,7 +586,8 @@ static int max77843_haptic_suspend(struct platform_device *pdev,
 static int max77843_haptic_resume(struct platform_device *pdev)
 {
 	pr_info("[VIB] %s\n", __func__);
-	g_hap_data->resumed = true;
+	max77843_haptic_init_reg(g_hap_data);
+
 	return 0;
 }
 
@@ -603,3 +618,4 @@ module_exit(max77843_haptic_exit);
 MODULE_AUTHOR("ByungChang Cha <bc.cha@samsung.com>");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("max77843 haptic driver");
+

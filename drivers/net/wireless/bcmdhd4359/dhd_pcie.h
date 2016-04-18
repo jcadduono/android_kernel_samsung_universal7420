@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_pcie.h 607208 2015-12-18 06:32:21Z $
+ * $Id: dhd_pcie.h 607608 2015-12-21 13:14:19Z $
  */
 
 
@@ -244,6 +244,7 @@ typedef struct dhd_bus {
 	uint8 force_suspend;
 	uint32 d3_ack_war_cnt;
 	uint8 is_linkdown;
+	uint32 pci_d3hot_done;
 } dhd_bus_t;
 
 /* function declarations */

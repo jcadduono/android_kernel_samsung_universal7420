@@ -505,11 +505,31 @@ conn_gadget_function_bind_config(struct android_usb_function *f,
 	return conn_gadget_bind_config(c);
 }
 
+static DEVICE_ATTR(usb_buffer_size, S_IRUGO | S_IWUSR,
+	conn_gadget_usb_buffer_size_show,
+	conn_gadget_usb_buffer_size_store);
+
+static DEVICE_ATTR(out_max_packet_size, S_IRUGO | S_IWUSR,
+	conn_gadget_out_max_packet_size_show,
+	conn_gadget_out_max_packet_size_store);
+
+static DEVICE_ATTR(in_max_packet_size, S_IRUGO | S_IWUSR,
+	conn_gadget_in_max_packet_size_show,
+	conn_gadget_in_max_packet_size_store);
+
+static struct device_attribute *conn_gadget_function_attributes[] = {
+	&dev_attr_usb_buffer_size, 
+	&dev_attr_out_max_packet_size,
+	&dev_attr_in_max_packet_size,
+	NULL
+};
+
 static struct android_usb_function conn_gadget_function = {
 	.name = "conn_gadget",
 	.init = conn_gadget_function_init,
 	.cleanup = conn_gadget_function_cleanup,
 	.bind_config = conn_gadget_function_bind_config,
+	.attributes	= conn_gadget_function_attributes,
 };
 #endif
 
