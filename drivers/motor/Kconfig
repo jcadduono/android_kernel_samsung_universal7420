@@ -1,6 +1,11 @@
 #
 #
 #
+menuconfig VIBETONZ
+	tristate "Vibetonz"
+	help
+	  Say Y to enable Vibetonz support.
+
 config MOTOR_DRV_MAX77804
 	tristate "Maxim MAX77804 motor"
 	default n
@@ -20,7 +25,7 @@ config MOTOR_DRV_MAX77828
 config MOTOR_DRV_MAX77833
     tristate "Maxim MAX77833 motor"
     default n
-    depends on (MFD_MAX77833 && ANDROID_TIMED_OUTPUT)
+    depends on MFD_MAX77833
     help
       If you say yes here you will get support for the 
       motor of Maxim MAX77833 PMIC.
@@ -28,7 +33,7 @@ config MOTOR_DRV_MAX77833
 config MOTOR_DRV_MAX77843
 	tristate "Maxim MAX77843 motor"
 	default n
-	depends on (MFD_MAX77843 && ANDROID_TIMED_OUTPUT)
+	depends on MFD_MAX77843
 	help
 	  If you say yes here you will get support for the
 	  motor of Maxim MAX77843 PMIC.
