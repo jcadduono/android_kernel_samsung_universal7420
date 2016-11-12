@@ -20,7 +20,7 @@ ABORT()
 ABORT "Unable to find gcc cross-compiler at location: ${CROSS_COMPILE}gcc"
 
 [ "$1" ] && TARGET=$1
-[ "$TARGET" ] || TARGET=samsung
+[ "$TARGET" ] || TARGET=twrp
 
 DEFCONFIG=${TARGET}_defconfig
 DEFCONFIG_FILE=$RDIR/arch/$ARCH/configs/$DEFCONFIG
