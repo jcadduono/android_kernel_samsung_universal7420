@@ -68,6 +68,13 @@ struct lcd_seq_info {
 #define S6E3HF2_MAX_BRIGHTNESS	360
 #define S6E3HF2_HBM_BRIGHTNESS	600
 
+
+#define S6E3HF2_REG_DSI_ADDR 	0xF2
+#define S6E3HF2_REG_DSI_LEN 	1
+#define S6E3HF2_REG_MIC_ADDR 	0xF9
+#define S6E3HF2_REG_MIC_LEN	1
+
+
 static const unsigned int VINT_DIM_TABLE[] = {
 	5,	6,	7,	8,	9,
 	10,	11,	12,	13,	14

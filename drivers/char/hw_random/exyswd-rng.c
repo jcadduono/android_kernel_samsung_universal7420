@@ -251,6 +251,7 @@ static int exyswd_rng_probe(struct platform_device *pdev)
 
 	rng.name = "exyswd_rng";
 	rng.read = exynos_swd_read;
+	rng.quality = 500;
 
 	spin_lock_init(&hwrandom_lock);
 #if defined(CONFIG_EXYRNG_FIPS_COMPLIANCE)
@@ -277,28 +278,36 @@ static int exyswd_rng_remove(struct platform_device *pdev)
 static int exyswd_rng_suspend(struct device *dev)
 {
 	unsigned long flag;
+	int ret = HWRNG_RET_OK;
 
 	spin_lock_irqsave(&hwrandom_lock, flag);
-	if (hwrng_read_flag)
-		exynos_smc(SMC_CMD_RANDOM, HWRNG_EXIT, 0, 0);
+	if (hwrng_read_flag) {
+		ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_EXIT, 0, 0);
+		if (ret != HWRNG_RET_OK)
+			printk("[ExyRNG] failed to enter suspend with %d\n", ret);
+	}
 	spin_unlock_irqrestore(&hwrandom_lock, flag);
 
-	return 0;
+	return ret;
 }
 
 static int exyswd_rng_resume(struct device *dev)
 {
 	unsigned long flag;
+	int ret = HWRNG_RET_OK;
 
 	spin_lock_irqsave(&hwrandom_lock, flag);
 #if defined(CONFIG_EXYRNG_FIPS_COMPLIANCE)
 	exynos_smc(SMC_CMD_RANDOM, HWRNG_RESUME, 0, 0);
 #endif
-	if (hwrng_read_flag)
-		exynos_smc(SMC_CMD_RANDOM, HWRNG_INIT, 0, 0);
+	if (hwrng_read_flag) {
+		ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_INIT, 0, 0);
+		if (ret != HWRNG_RET_OK)
+			printk("[ExyRNG] failed to resume with %d\n", ret);
+	}
 	spin_unlock_irqrestore(&hwrandom_lock, flag);
 
-	return 0;
+	return ret;
 }
 #endif
 

@@ -37,6 +37,8 @@ config EXYNOS_DP
 source "drivers/video/exynos/decon_display/Kconfig"
 source "drivers/video/exynos/decon_tv_display/Kconfig"
 source "drivers/video/exynos/decon/Kconfig"
+source "drivers/video/exynos/decon_dual_display/Kconfig"
+source "drivers/video/exynos/decon_dual_dsi/Kconfig"
 source "drivers/video/exynos/decon_royce/Kconfig"
 if SOC_EXYNOS7580
 source "drivers/video/exynos/decon_7580/Kconfig"

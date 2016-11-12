@@ -1231,6 +1231,48 @@ read_fail:
 
 }
 
+
+static int s6e3hf2_read_reg_status(struct dsim_device *dsim, bool need_key_unlock )
+{
+	static int cnt = 0;
+	static int err_cnt = 0;
+	int ret = 0;
+	int result = 0;
+
+	unsigned char reg_buffer_dsi[S6E3HF2_REG_DSI_LEN+4] = { 0, };
+	unsigned char reg_buffer_mic[S6E3HF2_REG_MIC_LEN+4] = { 0, };
+
+	if( need_key_unlock ) {
+		ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		}
+	}
+
+	ret = dsim_read_hl_data(dsim, S6E3HF2_REG_DSI_ADDR, S6E3HF2_REG_DSI_LEN, reg_buffer_dsi);
+	ret = dsim_read_hl_data(dsim, S6E3HF2_REG_MIC_ADDR, S6E3HF2_REG_MIC_LEN, reg_buffer_mic);
+
+	if( reg_buffer_dsi[0]!=SEQ_SINGLE_DSI_1[1] || reg_buffer_mic[0]!=SEQ_SINGLE_DSI_2[1] ) {
+		dsim_err( "%s : register unMatch detected(%d,%d). DSI(%02x.%02x)->%02x.%02x, MIC(%02x.%02x)->%02x.%02x\n",
+			__func__, cnt, ++err_cnt, SEQ_SINGLE_DSI_1[0], SEQ_SINGLE_DSI_1[1], S6E3HF2_REG_DSI_ADDR, reg_buffer_dsi[0],
+			SEQ_SINGLE_DSI_2[0], SEQ_SINGLE_DSI_2[1], S6E3HF2_REG_MIC_ADDR, reg_buffer_mic[0] );
+		result = 1;
+	} else {
+		dsim_info( "%s : register matched(%d,%d).\n", __func__, ++cnt, err_cnt );
+	}
+
+	if( need_key_unlock ) {
+		ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		}
+	}
+	ret = 0;
+
+	return result;
+}
+
+
 static int s6e3hf2_wqhd_dump(struct dsim_device *dsim)
 {
 	int ret = 0;
@@ -1501,7 +1543,7 @@ exit_err:
 static int s6e3hf2_wqhd_init(struct dsim_device *dsim)
 {
 	int ret = 0;
-
+	int cnt;
 	dsim_info("MDD : %s was called\n", __func__);
 
 #ifdef CONFIG_LCD_ALPM
@@ -1526,16 +1568,25 @@ static int s6e3hf2_wqhd_init(struct dsim_device *dsim)
 		dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
 		goto init_exit;
 	}
-	ret = dsim_write_hl_data(dsim, SEQ_SINGLE_DSI_1, ARRAY_SIZE(SEQ_SINGLE_DSI_1));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_SINGLE_DSI_1\n", __func__);
-		goto init_exit;
-	}
-	ret = dsim_write_hl_data(dsim, SEQ_SINGLE_DSI_2, ARRAY_SIZE(SEQ_SINGLE_DSI_2));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : SEQ_SINGLE_DSI_2\n", __func__);
-		goto init_exit;
-	}
+
+	cnt = 0;
+	do {
+		if( cnt>0 ) dsim_err( "%s : DSI/MIC cmd retry\n", __func__ );
+		
+		ret = dsim_write_hl_data(dsim, SEQ_SINGLE_DSI_1, ARRAY_SIZE(SEQ_SINGLE_DSI_1));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_SINGLE_DSI_1\n", __func__);
+			//goto init_exit;
+		}
+
+		ret = dsim_write_hl_data(dsim, SEQ_SINGLE_DSI_2, ARRAY_SIZE(SEQ_SINGLE_DSI_2));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_SINGLE_DSI_2\n", __func__);
+			//goto init_exit;
+		}
+	} while( s6e3hf2_read_reg_status(dsim, false ) && cnt++ <3 );
+	// if( cnt >= 3 ) panic( "s6e3hf2_read_reg_status()" );
+
 #ifdef CONFIG_LCD_HMT
 	if(dsim->priv.hmt_on != HMT_ON)
 #endif

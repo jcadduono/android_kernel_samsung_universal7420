@@ -90,6 +90,8 @@ static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_mutex);
 static struct class *vfsspi_device_class;
 static int gpio_irq;
+/* for irq enable, disable count */
+static int cnt_irq=0;
 
 #ifdef CONFIG_OF
 static struct of_device_id vfsspi_match_table[] = {
@@ -672,6 +674,7 @@ static int vfsspi_enableIrq(struct vfsspi_device_data *vfsspi_device)
 	vfsspi_pin_control(vfsspi_device, true);
 	enable_irq(gpio_irq);
 	atomic_set(&vfsspi_device->irq_enabled, DRDY_IRQ_ENABLE);
+	cnt_irq++;
 	spin_unlock_irq(&vfsspi_device->irq_lock);
 	return 0;
 }
@@ -689,6 +692,7 @@ static int vfsspi_disableIrq(struct vfsspi_device_data *vfsspi_device)
 	disable_irq_nosync(gpio_irq);
 	atomic_set(&vfsspi_device->irq_enabled, DRDY_IRQ_DISABLE);
 	vfsspi_pin_control(vfsspi_device, false);
+	cnt_irq--;
 	spin_unlock_irq(&vfsspi_device->irq_lock);
 	return 0;
 }
@@ -704,16 +708,21 @@ static irqreturn_t vfsspi_irq(int irq, void *context)
 	Therefore, we are checking DRDY GPIO pin state to make sure
 	if the interrupt handler has been called actually by DRDY
 	interrupt and it's not a previous interrupt re-play */
-	if ((gpio_get_value(vfsspi_device->drdy_pin) == DRDY_ACTIVE_STATUS)
-		 && (atomic_read(&vfsspi_device->irq_enabled)
-		== DRDY_IRQ_ENABLE)) {
+	if (gpio_get_value(vfsspi_device->drdy_pin) == DRDY_ACTIVE_STATUS) {
 		spin_lock(&vfsspi_device->irq_lock);
-		disable_irq_nosync(gpio_irq);
-		atomic_set(&vfsspi_device->irq_enabled, DRDY_IRQ_DISABLE);
-		vfsspi_pin_control(vfsspi_device, false);
-		spin_unlock(&vfsspi_device->irq_lock);
-		vfsspi_send_drdy_signal(vfsspi_device);
-		pr_info("%s disableIrq\n", __func__);
+		if (atomic_read(&vfsspi_device->irq_enabled) == DRDY_IRQ_ENABLE) {
+			disable_irq_nosync(gpio_irq);
+			atomic_set(&vfsspi_device->irq_enabled, DRDY_IRQ_DISABLE);
+			vfsspi_pin_control(vfsspi_device, false);
+			cnt_irq--;
+			spin_unlock(&vfsspi_device->irq_lock);
+			vfsspi_send_drdy_signal(vfsspi_device);
+			pr_info("%s disableIrq\n", __func__);
+		}
+		else {
+			spin_unlock(&vfsspi_device->irq_lock);
+			pr_info("%s irq already diabled\n", __func__);
+		}
 	}
 	return IRQ_HANDLED;
 }
@@ -909,11 +918,12 @@ static long vfsspi_ioctl(struct file *filp, unsigned int cmd,
 	case VFSSPI_IOCTL_DISABLE_SPI_CLOCK:
 		ret_val = vfsspi_ioctl_disable_spi_clock(vfsspi_device);
 		break;
-
 	case VFSSPI_IOCTL_SET_SPI_CONFIGURATION:
+		pr_info("%s VFSSPI_IOCTL_SET_SPI_CONFIGURATION\n", __func__);
 		break;
 
 	case VFSSPI_IOCTL_RESET_SPI_CONFIGURATION:
+		pr_info("%s VFSSPI_IOCTL_RESET_SPI_CONFIGURATION\n", __func__);
 		break;
 	case VFSSPI_IOCTL_CPU_SPEEDUP:
 		if (copy_from_user(&onoff, (void *)arg,
@@ -1414,12 +1424,13 @@ static void vfsspi_work_func_debug(struct work_struct *work)
 	}
 
 	pr_info("%s ldo: %d,"
-		" sleep: %d, irq: %d, tz: %d, type: %s\n",
+		" sleep: %d, irq: %d, tz: %d, type: %s, cnt_irq: %d\n",
 		__func__,
 		ldo_value, gpio_get_value(g_data->sleep_pin),
 		gpio_get_value(g_data->drdy_pin),
 		g_data->tz_mode,
-		sensor_status[g_data->sensortype + 1]);
+		sensor_status[g_data->sensortype + 1],
+		cnt_irq);
 }
 
 static void vfsspi_enable_debug_timer(void)

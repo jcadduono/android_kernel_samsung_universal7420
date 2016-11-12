@@ -255,7 +255,7 @@ int bbd_tty_close(void)
 	}
 
 	/* This is needed for JTAG download (without LHD) */
-        BbdEngine_Close(&gpbbd_dev->bbd_engine);
+        //BbdEngine_Close(&gpbbd_dev->bbd_engine);
 
         sent_autobaud = false;
 	atomic_set(&bbd_tty_run, 0);

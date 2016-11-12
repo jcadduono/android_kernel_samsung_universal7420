@@ -2215,6 +2215,13 @@ static int android_usb_unbind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
+static void android_gadget_complete(struct usb_ep *ep, struct usb_request *req)
+{
+	if(req->status || req->actual != req->length)
+			printk(KERN_DEBUG "usb: %s: %d, %d/%d\n", __func__,
+				req->status, req->actual, req->length);
+}
+
 /* HACK: android needs to override setup for accessory to work */
 static int (*composite_setup_func)(struct usb_gadget *gadget, const struct usb_ctrlrequest *c);
 
@@ -2231,6 +2238,8 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 	req->zero = 0;
 	req->length = 0;
 	gadget->ep0->driver_data = cdev;
+
+	req->complete = android_gadget_complete;
 
 	list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
 		if (f->ctrlrequest) {

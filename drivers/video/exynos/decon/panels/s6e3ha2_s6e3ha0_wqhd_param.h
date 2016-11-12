@@ -20,6 +20,12 @@ struct lcd_seq_info {
 #define S6E3HA0_ID_REG				0x04
 #define S6E3HA0_ID_LEN				3
 
+#define S6E3HA0_REG_DSI_ADDR 	0xF2
+#define S6E3HA0_REG_DSI_LEN 	1
+#define S6E3HA0_REG_MIC_ADDR 	0xF9
+#define S6E3HA0_REG_MIC_LEN	1
+
+
 static const unsigned char S6E3HA0_SEQ_TEST_KEY_ON_F0[] = {
 	0xF0,
 	0x5A, 0x5A
@@ -414,6 +420,11 @@ static const unsigned char VINT_TABLE[] = {
 
 #define S6E3HA2_HBM_ELVSS_INDEX		21
 #define S6E3HA2_HBM_ELVSS_COMP		0x06
+
+#define S6E3HA2_REG_DSI_ADDR 	0xF2
+#define S6E3HA2_REG_DSI_LEN 	1
+#define S6E3HA2_REG_MIC_ADDR 	0xF9
+#define S6E3HA2_REG_MIC_LEN	1
 
 #define AID_CMD_CNT					3
 #define ELVSS_CMD_CNT				3

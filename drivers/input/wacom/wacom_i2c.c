@@ -471,6 +471,7 @@ static irqreturn_t wacom_pen_detect(int irq, void *dev_id)
 	struct wacom_i2c *wac_i2c = dev_id;
 
 	cancel_delayed_work_sync(&wac_i2c->pen_insert_dwork);
+	wake_lock_timeout(&wac_i2c->det_wakelock, HZ / 10);
 	schedule_delayed_work(&wac_i2c->pen_insert_dwork, HZ / 20);
 	return IRQ_HANDLED;
 }
@@ -1913,6 +1914,7 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	mutex_init(&wac_i2c->update_lock);
 	mutex_init(&wac_i2c->irq_lock);
 	wake_lock_init(&wac_i2c->fw_wakelock, WAKE_LOCK_SUSPEND, "wacom");
+	wake_lock_init(&wac_i2c->det_wakelock, WAKE_LOCK_SUSPEND, "wacom det");
 	INIT_DELAYED_WORK(&wac_i2c->resume_work, wacom_i2c_resume_work);
 #ifdef LCD_FREQ_SYNC
 	mutex_init(&wac_i2c->freq_write_lock);
@@ -2019,6 +2021,7 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	input_unregister_device(input);
 	input = NULL;
  err_register_device:
+	wake_lock_destroy(&wac_i2c->det_wakelock);
 	wake_lock_destroy(&wac_i2c->fw_wakelock);
 #ifdef LCD_FREQ_SYNC
 	mutex_destroy(&wac_i2c->freq_write_lock);

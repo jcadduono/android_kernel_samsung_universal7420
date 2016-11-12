@@ -2318,7 +2318,8 @@ static int __devinit max77843_charger_probe(struct platform_device *pdev)
 	return 0;
 
 err_wc_irq:
-	free_irq(charger->pdata->chg_irq, NULL);
+	if (charger->pdata->chg_irq)
+		free_irq(charger->pdata->chg_irq, charger);
 err_irq:
 	power_supply_unregister(&charger->psy_otg);
 err_power_supply_register_otg:
@@ -2340,8 +2341,15 @@ static int __devexit max77843_charger_remove(struct platform_device *pdev)
 		platform_get_drvdata(pdev);
 
 	destroy_workqueue(charger->wqueue);
-	free_irq(charger->wc_w_irq, NULL);
-	free_irq(charger->pdata->chg_irq, NULL);
+
+	if (charger->pdata->chg_irq)
+		free_irq(charger->pdata->chg_irq, charger);
+
+	free_irq(charger->wc_w_irq, charger);
+	free_irq(charger->irq_chgin, charger);
+	free_irq(charger->irq_bypass, charger);
+	free_irq(charger->irq_batp, charger);
+
 	power_supply_unregister(&charger->psy_chg);
 	mutex_destroy(&charger->charger_mutex);
 	kfree(charger);
@@ -2387,6 +2395,15 @@ static void max77843_charger_shutdown(struct device *dev)
 	reg_data = 0x67;
 	max77843_write_reg(charger->i2c,
 		MAX77843_CHG_REG_CNFG_12, reg_data);
+
+	if (charger->pdata->chg_irq)
+		free_irq(charger->pdata->chg_irq, charger);
+
+	free_irq(charger->wc_w_irq, charger);
+	free_irq(charger->irq_chgin, charger);
+	free_irq(charger->irq_bypass, charger);
+	free_irq(charger->irq_batp, charger);
+
 	pr_info("func:%s \n", __func__);
 }
 
