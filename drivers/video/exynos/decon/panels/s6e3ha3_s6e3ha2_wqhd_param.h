@@ -27,6 +27,8 @@ struct lcd_seq_info
 #define S6E3HF3_A3_REV01_ID		0x50
 #define S6E3HF3_A3_REV02_ID		0x60
 
+#define S6E3HF3_REG_MIC_ADDR 	0xF9
+#define S6E3HF3_REG_MIC_LEN		1
 
 #define POWER_IS_ON(pwr)			(pwr <= FB_BLANK_NORMAL)
 
@@ -524,6 +526,9 @@ static const unsigned char SEQ_HMT_AID_REVERSE1[] = {   /* G.Param */
 
 #define S6E3HA3_HBM_ELVSS_INDEX		21
 #define S6E3HA3_HBM_ELVSS_COMP		0x06
+
+#define S6E3HA3_REG_MIC_ADDR 	0xF9
+#define S6E3HA3_REG_MIC_LEN		1
 
 /*
 static const unsigned char S6E3HA3_VINT_TABLE[] = {

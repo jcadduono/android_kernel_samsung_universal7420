@@ -1955,6 +1955,45 @@ static int s6e3ha3_VT_RGB2GRB( unsigned char *VT )
 	return ret;
 }
 
+
+static int s6e3ha3_read_reg_status(struct dsim_device *dsim, bool need_key_unlock )
+{
+	static int cnt = 0;
+	static int err_cnt = 0;
+	int ret = 0;
+	int result = 0;
+
+	unsigned char reg_buffer_mic[S6E3HA3_REG_MIC_LEN + 4] = { 0, };
+
+	if( need_key_unlock ) {
+		ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		}
+	}
+
+	ret = dsim_read_hl_data(dsim, S6E3HA3_REG_MIC_ADDR, S6E3HA3_REG_MIC_LEN, reg_buffer_mic);
+
+	if(reg_buffer_mic[0] != S6E3HA3_SEQ_MIC[1] ) {
+		dsim_err( "%s : register unMatch detected(%d,%d). MIC(%02x.%02x)->%02x.%02x\n",
+			__func__, cnt, ++err_cnt, S6E3HA3_SEQ_MIC[0], S6E3HA3_SEQ_MIC[1], S6E3HA3_REG_MIC_ADDR, reg_buffer_mic[0] );
+		result = 1;
+	} else {
+		dsim_info( "%s : register matched(%d,%d).\n", __func__, ++cnt, err_cnt );
+	}
+
+	if( need_key_unlock ) {
+		ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		}
+	}
+	ret = 0;
+
+	return result;
+}
+
+
 static int s6e3ha3_read_init_info(struct dsim_device *dsim, unsigned char *mtp, unsigned char *hbm)
 {
 	int     i = 0;
@@ -2276,8 +2315,8 @@ exit_err:
 
 static int s6e3ha3_wqhd_init(struct dsim_device *dsim)
 {
-	int     ret = 0;
-
+	int ret = 0;
+	int cnt;
 	dsim_info("MDD : %s was called\n", __func__);
 
 	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
@@ -2319,11 +2358,17 @@ static int s6e3ha3_wqhd_init(struct dsim_device *dsim)
 		goto init_exit;
 	}
 
-	ret = dsim_write_hl_data(dsim, S6E3HA3_SEQ_MIC, ARRAY_SIZE(S6E3HA3_SEQ_MIC));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : S6E3HA3_SEQ_MIC\n", __func__);
-		goto init_exit;
-	}
+	/* 9. Interface Setting */
+	cnt = 0;
+	do {
+		if( cnt>0 ) dsim_err( "%s : DSI/MIC cmd retry\n", __func__ );
+
+		ret = dsim_write_hl_data(dsim, S6E3HA3_SEQ_MIC, ARRAY_SIZE(S6E3HA3_SEQ_MIC));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : S6E3HA3_SEQ_MIC\n", __func__);
+		}
+	} while( s6e3ha3_read_reg_status(dsim, false ) && cnt++ <3 );
+
 	if (hw_rev < 3) {
 		ret = dsim_write_hl_data(dsim, S6E3HA3_SEQ_DCDC_GLOBAL, ARRAY_SIZE(S6E3HA3_SEQ_DCDC_GLOBAL));
 		if (ret < 0) {
@@ -2829,10 +2874,48 @@ exit_err:
 }
 
 
+static int s6e3hf3_read_reg_status(struct dsim_device *dsim, bool need_key_unlock )
+{
+	static int cnt = 0;
+	static int err_cnt = 0;
+	int ret = 0;
+	int result = 0;
+
+	unsigned char reg_buffer_mic[S6E3HF3_REG_MIC_LEN + 4] = { 0, };
+
+	if( need_key_unlock ) {
+		ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		}
+	}
+
+	ret = dsim_read_hl_data(dsim, S6E3HF3_REG_MIC_ADDR, S6E3HF3_REG_MIC_LEN, reg_buffer_mic);
+
+	if(reg_buffer_mic[0] != S6E3HF3_SEQ_MIC[1] ) {
+		dsim_err( "%s : register unMatch detected(%d,%d). MIC(%02x.%02x)->%02x.%02x\n",
+			__func__, cnt, ++err_cnt, S6E3HF3_SEQ_MIC[0], S6E3HF3_SEQ_MIC[1], S6E3HF3_REG_MIC_ADDR, reg_buffer_mic[0] );
+		result = 1;
+	} else {
+		dsim_info( "%s : register matched(%d,%d).\n", __func__, ++cnt, err_cnt );
+	}
+
+	if( need_key_unlock ) {
+		ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : SEQ_TEST_KEY_ON_F0\n", __func__);
+		}
+	}
+	ret = 0;
+
+	return result;
+}
+
+
 static int s6e3hf3_wqhd_init(struct dsim_device *dsim)
 {
-	int     ret = 0;
-
+	int ret = 0;
+	int cnt = 0;
 	dsim_info("MDD : %s was called\n", __func__);
 
 	ret = dsim_write_hl_data(dsim, SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
@@ -2867,11 +2950,16 @@ static int s6e3hf3_wqhd_init(struct dsim_device *dsim)
 	}
 
 	/* 9. Interface Setting */
-	ret = dsim_write_hl_data(dsim, S6E3HF3_SEQ_MIC, ARRAY_SIZE(S6E3HF3_SEQ_MIC));
-	if (ret < 0) {
-		dsim_err("%s : fail to write CMD : S6E3HF3_SEQ_MIC\n", __func__);
-		goto init_exit;
-	}
+	cnt = 0;
+	do {
+		if( cnt>0 ) dsim_err( "%s : DSI/MIC cmd retry\n", __func__ );
+
+		ret = dsim_write_hl_data(dsim, S6E3HF3_SEQ_MIC, ARRAY_SIZE(S6E3HF3_SEQ_MIC));
+		if (ret < 0) {
+			dsim_err("%s : fail to write CMD : S6E3HF3_SEQ_MIC\n", __func__);
+		}
+	} while( s6e3hf3_read_reg_status(dsim, false ) && cnt++ <3 );
+
 	if (hw_rev < 3) {
 		ret = dsim_write_hl_data(dsim, S6E3HF3_SEQ_DCDC_GLOBAL, ARRAY_SIZE(S6E3HF3_SEQ_DCDC_GLOBAL));
 		if (ret < 0) {

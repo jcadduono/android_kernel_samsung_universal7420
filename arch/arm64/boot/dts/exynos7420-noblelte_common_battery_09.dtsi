@@ -90,6 +90,7 @@
 
 		battery,chg_temp_check = <1>;
 		battery,wpc_temp_check = <1>;
+		battery,mix_temp_check = <1>;
 
 		battery,polling_time = <10 30 30 30 3600>;
 
@@ -238,6 +239,15 @@
 		battery,wpc_skip_check_time = <600>;
 
 		battery,sleep_mode_limit_current = <500>;
+
+		battery,mix_high_tbat = <990>;
+		battery,mix_high_tchg = <990>;
+		battery,mix_high_tbat_recov = <990>;
+		battery,mix_input_limit_current = <100>;
+		battery,mix_high_tbat_hv = <410>;
+		battery,mix_high_tchg_hv = <500>;
+		battery,mix_high_tbat_recov_hv = <380>;
+		battery,mix_input_limit_current_hv = <100>;
 
 		/* SEC_BATTERY_FULL_CONDITION_SOC |
 		   SEC_BATTERY_FULL_CONDITION_NOTIMEFULL |

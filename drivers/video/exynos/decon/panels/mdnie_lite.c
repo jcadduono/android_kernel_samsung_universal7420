@@ -399,7 +399,6 @@ static ssize_t accessibility_store(struct device *dev,
 
 		mutex_lock(&mdnie->lock);
 		mdnie->accessibility = value;
-		mdnie->scenario = UI_MODE;
 		if (value == COLOR_BLIND || value == COLOR_BLIND_HBM) {
 			if (ret > ARRAY_SIZE(s) + 1) {
 				mutex_unlock(&mdnie->lock);

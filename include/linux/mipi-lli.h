@@ -139,7 +139,7 @@ struct mipi_lli {
 	struct work_struct      wq_sys_init;
 	struct workqueue_struct	*wq;
 
-#ifdef CONFIG_DEBUG_FS
+#ifdef CONFIG_LLI_DEBUG_FS
 	struct dentry *debugfs_dir;
 	struct dentry *debugfs_dump;
 #endif

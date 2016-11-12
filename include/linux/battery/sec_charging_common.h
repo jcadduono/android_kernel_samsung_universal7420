@@ -189,6 +189,12 @@ enum sec_battery_wpc_pad_state {
 	SEC_BATTERY_WPC_TEMP_HIGH,
 };
 
+/* bat_temp state */
+enum sec_battery_bat_temp_state {
+	SEC_BATTERY_MIX_TEMP_NONE = 0,
+	SEC_BATTERY_MIX_TEMP_HIGH,
+};
+
 struct sec_bat_adc_api {
 	bool (*init)(struct platform_device *);
 	bool (*exit)(void);
@@ -621,6 +627,7 @@ struct sec_battery_platform_data {
 	unsigned int temp_check_count;
 	unsigned int chg_temp_check;
 	unsigned int wpc_temp_check;
+	unsigned int mix_temp_check;
 	unsigned int inbat_voltage;
 
 	/*
@@ -666,6 +673,14 @@ struct sec_battery_platform_data {
 	unsigned int sleep_mode_limit_current;
 	unsigned int wpc_skip_check_time;
 	unsigned int wpc_skip_check_capacity;
+	int mix_high_tbat;
+	int mix_high_tchg;
+	int mix_high_tbat_recov;
+	unsigned int mix_input_limit_current;
+	int mix_high_tbat_hv;
+	int mix_high_tchg_hv;
+	int mix_high_tbat_recov_hv;
+	unsigned int mix_input_limit_current_hv;
 
 #if defined(CONFIG_WIRELESS_CHARGER_INBATTERY)	
 	bool wpc_delayed_current_en;

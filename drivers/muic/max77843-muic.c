@@ -447,12 +447,12 @@ static const struct max77843_muic_vps_data muic_vps_table[] = {
 		.adc1k		= 0x00,
 		.adcerr		= 0x00,
 		.adc		= ADC_CEA936ATYPE2_CHG,
-		.vbvolt		= VB_HIGH,
+		.vbvolt		= VB_DONTCARE,
 		.chgdetrun	= CHGDETRUN_DONTCARE,
 		.chgtyp		= CHGTYP_DONTCARE,
 		.control1	= CTRL1_OPEN,
 		.vps_name	= "TYPE2 Charger",
-		.attached_dev	= ATTACHED_DEV_UNSUPPORTED_ID_VB_MUIC,
+		.attached_dev	= ATTACHED_DEV_TYPE2_CHG_MUIC,
 	},
 #if defined(CONFIG_MUIC_DET_JACK)
 	{
@@ -2015,7 +2015,6 @@ static int max77843_muic_logically_detach(struct max77843_muic_data *muic_data,
 	case ATTACHED_DEV_CDP_MUIC:
 	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
 	case ATTACHED_DEV_HMT_MUIC:
-	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:
 	case ATTACHED_DEV_MHL_MUIC:
@@ -2198,7 +2197,6 @@ static int max77843_muic_handle_attach(struct max77843_muic_data *muic_data,
 #endif
 		ret = write_vps_regs(muic_data, new_dev);
 		break;
-	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
 		ret = write_vps_regs(muic_data, new_dev);
 		break;

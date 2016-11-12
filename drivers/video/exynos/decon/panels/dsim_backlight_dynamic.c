@@ -537,6 +537,11 @@ int dsim_panel_set_brightness(struct dsim_device *dsim, int force)
 		acutal_br = real_br = get_actual_br_value(dsim, panel->br_index);
 		panel->interpolation = 1;
 		panel->acl_enable = ACL_OPR_8P;
+
+		if (panel->state != PANEL_STATE_RESUMED) {
+			dsim_info("%s : panel is not active state..\n", __func__);
+			goto set_br_exit;
+		}
 		goto set_brightness;
 	} else {
 		panel->interpolation = 0;

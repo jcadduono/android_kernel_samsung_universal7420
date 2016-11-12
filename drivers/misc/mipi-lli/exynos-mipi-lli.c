@@ -925,7 +925,7 @@ parsing_err:
 	return 0;
 }
 
-#ifdef CONFIG_DEBUG_FS
+#ifdef CONFIG_LLI_DEBUG_FS
 
 static ssize_t debugfs_dump(struct file *file,
 		char __user *user_buf, size_t count, loff_t *ppos)
@@ -937,9 +937,14 @@ static ssize_t debugfs_dump(struct file *file,
 	struct mipi_lli_dump *dump;
 
 	lli = file->private_data;
-	dump = &lli->dump;
+	if (!lli)
+		return 0;
 
-	if (!lli || !dump)
+	if(!lli->is_debug_possible)
+		return 0;
+
+	dump = &lli->dump;
+	if (!dump)
 		return 0;
 
 	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);

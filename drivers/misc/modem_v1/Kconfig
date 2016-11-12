@@ -82,6 +82,10 @@ config LINK_DEVICE_LLI
 	select LINK_DEVICE_WITH_SBD_ARCH
 	default n
 
+config LLI_DEBUG_FS
+	bool "LLI register debugfs logging feature"
+	default n
+
 config LINK_DEVICE_SHMEM
 	bool "Real system-level shared-memory on a system bus"
 	depends on SEC_MODEM_V1
