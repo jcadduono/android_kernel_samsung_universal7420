@@ -1,5 +1,5 @@
 #!/bin/bash
-# Samsung kernel for Samsung Galaxy Note 5 / S6 / S6 Edge / S6 Edge+ build script by jcadduono
+# Kali NetHunter kernel for Samsung Galaxy Note 5 / S6 / S6 Edge / S6 Edge+ build script by jcadduono
 
 ################### BEFORE STARTING ################
 #
@@ -66,7 +66,7 @@ export CROSS_COMPILE=$TOOLCHAIN/bin/aarch64-linux-gnu-
 [ -x "${CROSS_COMPILE}gcc" ] ||
 ABORT "Unable to find gcc cross-compiler at location: ${CROSS_COMPILE}gcc"
 
-[ "$TARGET" ] || TARGET=samsung
+[ "$TARGET" ] || TARGET=nethunter
 [ "$1" ] && DEVICE=$1
 [ "$2" ] && VARIANT=$2
 [ "$DEVICE" ] || DEVICE=noblelte
